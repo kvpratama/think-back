@@ -4,4 +4,24 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic>=2.12.5",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "ruff>=0.15.6",
+]
+
+[tool.ruff]
+exclude = ["supabase/database_types.py"]
+
+[tool.ruff.format]
+exclude = ["supabase/database_types.py"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+exclude = ["supabase/database_types.py"]
