@@ -69,7 +69,7 @@ supabase db push
 
 # 5. Remember to regenerate TypeScript definitions after each schema change
 supabase gen types typescript --local > lib/supabase/database.types.ts
-npx supabase gen types --lang=python --local > database_types.py
+supabase gen types --lang=python --local > supabase/database_types.py
 
 # 6. Remember to regenerate schema.sql
 supabase db dump --local > supabase/schemas/schema.sql
