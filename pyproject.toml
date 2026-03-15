@@ -20,3 +20,8 @@ exclude = ["supabase/database_types.py"]
 
 [tool.ruff.format]
 exclude = ["supabase/database_types.py"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+exclude = ["supabase/database_types.py"]
