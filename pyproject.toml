@@ -17,9 +17,14 @@ dev = [
 
 [tool.ruff]
 exclude = ["supabase/database_types.py"]
+line-length = 100
+target-version = "py312"
 
 [tool.ruff.format]
 exclude = ["supabase/database_types.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "PT"]
 
 [tool.mypy]
 python_version = "3.12"
