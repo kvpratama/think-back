@@ -90,6 +90,8 @@ async def save_memory(content: str, summary: str | None = None) -> dict[str, Any
     """
     vector_store = _get_vector_store()
 
+    content = content.replace("/save", "", 1).strip()
+
     # Create a document with metadata
     metadata = {"summary": summary or content}
     document = Document(page_content=content, metadata=metadata)
@@ -126,6 +128,8 @@ async def search_memories(
         ...     print(memory["content"])
     """
     vector_store = _get_vector_store()
+
+    query = query.replace("/ask", "", 1).strip()
 
     # Use similarity_search_with_relevance_scores to get documents with scores
     try:

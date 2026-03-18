@@ -78,6 +78,75 @@ async def test_save_memory_inserts_into_database(
 
 
 @pytest.mark.asyncio
+async def test_save_memory_strips_save_command_prefix(
+    mock_settings: MagicMock,
+) -> None:
+    """Test that save_memory strips the /save command prefix from content."""
+    from src.db.vector_store import save_memory
+
+    mock_client = MagicMock()
+    mock_vector_store = MagicMock()
+    memory_id = str(uuid4())
+    mock_vector_store.add_documents.return_value = [memory_id]
+
+    mock_select_response = MagicMock()
+    mock_select_response.data = [{"id": memory_id, "content": "Remember this"}]
+    mock_select = MagicMock()
+    mock_select.execute.return_value = mock_select_response
+    mock_eq = MagicMock()
+    mock_eq.execute = mock_select
+    mock_select_method = MagicMock(return_value=mock_eq)
+    mock_table = MagicMock()
+    mock_table.select.return_value = mock_select_method
+    mock_table.eq = mock_select_method
+    mock_client.table.return_value = mock_table
+
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
+        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
+            with patch("src.core.config.Settings", return_value=mock_settings):
+                await save_memory("/save Remember this")
+
+                # Verify the document was stored without the /save prefix
+                call_args = mock_vector_store.add_documents.call_args
+                document = call_args[0][0][0]
+                assert document.page_content == "Remember this"
+
+
+@pytest.mark.asyncio
+async def test_save_memory_strips_save_command_with_extra_whitespace(
+    mock_settings: MagicMock,
+) -> None:
+    """Test that save_memory strips /save and surrounding whitespace correctly."""
+    from src.db.vector_store import save_memory
+
+    mock_client = MagicMock()
+    mock_vector_store = MagicMock()
+    memory_id = str(uuid4())
+    mock_vector_store.add_documents.return_value = [memory_id]
+
+    mock_select_response = MagicMock()
+    mock_select_response.data = [{"id": memory_id, "content": "Remember this"}]
+    mock_select = MagicMock()
+    mock_select.execute.return_value = mock_select_response
+    mock_eq = MagicMock()
+    mock_eq.execute = mock_select
+    mock_select_method = MagicMock(return_value=mock_eq)
+    mock_table = MagicMock()
+    mock_table.select.return_value = mock_select_method
+    mock_table.eq = mock_select_method
+    mock_client.table.return_value = mock_table
+
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
+        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
+            with patch("src.core.config.Settings", return_value=mock_settings):
+                await save_memory("  /save   Remember this  ")
+
+                call_args = mock_vector_store.add_documents.call_args
+                document = call_args[0][0][0]
+                assert document.page_content == "Remember this"
+
+
+@pytest.mark.asyncio
 async def test_search_memories_performs_vector_search(
     mock_settings: MagicMock,
 ) -> None:
@@ -99,4 +168,46 @@ async def test_search_memories_performs_vector_search(
             assert result[0]["similarity"] == 0.85
             mock_vector_store.similarity_search_with_relevance_scores.assert_called_once_with(
                 "test query", k=3
+            )
+
+
+@pytest.mark.asyncio
+async def test_search_memories_strips_ask_command_prefix(
+    mock_settings: MagicMock,
+) -> None:
+    """Test that search_memories strips the /ask command prefix from query."""
+    from src.db.vector_store import search_memories
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.similarity_search_with_relevance_scores.return_value = [
+        (MagicMock(page_content="memory 1", metadata={"summary": "summary 1"}), 0.85),
+    ]
+
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
+        with patch("src.core.config.Settings", return_value=mock_settings):
+            await search_memories("/ask What are my habits?")
+
+            mock_vector_store.similarity_search_with_relevance_scores.assert_called_once_with(
+                "What are my habits?", k=3
+            )
+
+
+@pytest.mark.asyncio
+async def test_search_memories_strips_ask_command_with_extra_whitespace(
+    mock_settings: MagicMock,
+) -> None:
+    """Test that search_memories strips /ask and surrounding whitespace correctly."""
+    from src.db.vector_store import search_memories
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.similarity_search_with_relevance_scores.return_value = [
+        (MagicMock(page_content="memory 1", metadata={"summary": "summary 1"}), 0.85),
+    ]
+
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
+        with patch("src.core.config.Settings", return_value=mock_settings):
+            await search_memories("  /ask   What are my habits?  ")
+
+            mock_vector_store.similarity_search_with_relevance_scores.assert_called_once_with(
+                "What are my habits?", k=3
             )
