@@ -7,15 +7,15 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135.1",
     "langchain>=1.2.12",
+    "langchain-community>=0.4.1",
     "langchain-google-genai>=4.2.1",
     "langchain-openai>=1.1.11",
     "langgraph>=1.1.2",
-    "pgvector>=0.4.2",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.2.2",
     "python-telegram-bot>=22.7",
-    "supabase>=2.28.2",
+    "supabase==2.18.1", # Temporary downgrade supabase until langchain-community has new update > 0.4.1
     "uvicorn>=0.42.0",
 ]
 
@@ -28,12 +28,12 @@ dev = [
 ]
 
 [tool.ruff]
-exclude = ["supabase/database_types.py"]
+exclude = ["supabase/database_types.py", "supabase/schema.sql"]
 line-length = 100
 target-version = "py312"
 
 [tool.ruff.format]
-exclude = ["supabase/database_types.py"]
+exclude = ["supabase/database_types.py", "supabase/schema.sql"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "PT"]
@@ -41,4 +41,4 @@ select = ["E", "F", "I", "UP", "B", "C4", "PT"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-exclude = ["supabase/database_types.py"]
+exclude = ["supabase/database_types.py", "supabase/schema.sql"]
