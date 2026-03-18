@@ -4,6 +4,7 @@ import os
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 from pydantic_settings import SettingsConfigDict
 
 
@@ -40,11 +41,8 @@ def test_settings_requires_all_env_vars() -> None:
                 extra="ignore",
             ),
         ):
-            # With empty string defaults, Settings won't raise ValidationError
-            # but the app will fail at runtime if env vars are not set
-            settings = Settings()
-            assert settings.supabase_url == ""
-            assert settings.supabase_key == ""
+            with pytest.raises(ValidationError):
+                Settings()
 
 
 def test_settings_has_default_llm_model() -> None:

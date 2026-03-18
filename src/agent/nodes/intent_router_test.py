@@ -1,17 +1,15 @@
 """Tests for the intent_router node."""
 
-import pytest
-
 from src.agent.state import AgentState
 
 
-@pytest.mark.asyncio
 async def test_intent_router_detects_save_intent() -> None:
-    """Test that intent_router detects save intent."""
+    """Test that intent_router detects save intent and strips prefix."""
     from src.agent.nodes.intent_router import intent_router
 
     state: AgentState = {
         "user_input": "/save Consistency beats intensity",
+        "cleaned_input": "",
         "intent": None,
         "memories": [],
         "response": "",
@@ -21,15 +19,16 @@ async def test_intent_router_detects_save_intent() -> None:
     result = await intent_router(state)
 
     assert result["intent"] == "save"
+    assert result["cleaned_input"] == "Consistency beats intensity"
 
 
-@pytest.mark.asyncio
 async def test_intent_router_detects_query_intent() -> None:
-    """Test that intent_router detects query intent."""
+    """Test that intent_router detects query intent and strips prefix."""
     from src.agent.nodes.intent_router import intent_router
 
     state: AgentState = {
         "user_input": "/ask What do I know about habits?",
+        "cleaned_input": "",
         "intent": None,
         "memories": [],
         "response": "",
@@ -39,15 +38,35 @@ async def test_intent_router_detects_query_intent() -> None:
     result = await intent_router(state)
 
     assert result["intent"] == "query"
+    assert result["cleaned_input"] == "What do I know about habits?"
 
 
-@pytest.mark.asyncio
+async def test_intent_router_detects_query_command() -> None:
+    """Test that intent_router detects /query command."""
+    from src.agent.nodes.intent_router import intent_router
+
+    state: AgentState = {
+        "user_input": "/query What are my habits?",
+        "cleaned_input": "",
+        "intent": None,
+        "memories": [],
+        "response": "",
+        "error": None,
+    }
+
+    result = await intent_router(state)
+
+    assert result["intent"] == "query"
+    assert result["cleaned_input"] == "What are my habits?"
+
+
 async def test_intent_router_handles_unknown_intent() -> None:
     """Test that intent_router handles unknown intents."""
     from src.agent.nodes.intent_router import intent_router
 
     state: AgentState = {
         "user_input": "Hello bot!",
+        "cleaned_input": "",
         "intent": None,
         "memories": [],
         "response": "",
@@ -58,3 +77,22 @@ async def test_intent_router_handles_unknown_intent() -> None:
 
     assert result["intent"] is None
     assert result["error"] is not None
+
+
+async def test_intent_router_strips_whitespace() -> None:
+    """Test that intent_router strips extra whitespace from cleaned_input."""
+    from src.agent.nodes.intent_router import intent_router
+
+    state: AgentState = {
+        "user_input": "  /save   Remember this  ",
+        "cleaned_input": "",
+        "intent": None,
+        "memories": [],
+        "response": "",
+        "error": None,
+    }
+
+    result = await intent_router(state)
+
+    assert result["intent"] == "save"
+    assert result["cleaned_input"] == "Remember this"

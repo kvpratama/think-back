@@ -2,18 +2,16 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.agent.state import AgentState
 
 
-@pytest.mark.asyncio
 async def test_generate_answer_node_creates_response() -> None:
     """Test that generate_answer node creates a response from memories."""
     from src.agent.nodes.generate_answer import generate_answer
 
     state: AgentState = {
-        "user_input": "What do I know about habits?",
+        "user_input": "/ask What do I know about habits?",
+        "cleaned_input": "What do I know about habits?",
         "intent": "query",
         "memories": [
             {"content": "Consistency beats intensity", "summary": "habits"},
@@ -28,7 +26,7 @@ async def test_generate_answer_node_creates_response() -> None:
             mock_settings_instance.llm_model = "gpt-4o-mini"
             mock_settings_instance.llm_provider = "openai"
             mock_settings_instance.openai_api_key = "test-key"
-            mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1/models"
+            mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1"
             mock_settings.return_value = mock_settings_instance
 
             mock_model = MagicMock()
@@ -43,13 +41,13 @@ async def test_generate_answer_node_creates_response() -> None:
             mock_init_model.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_generate_answer_node_handles_no_memories() -> None:
     """Test that generate_answer node handles empty memories."""
     from src.agent.nodes.generate_answer import generate_answer
 
     state: AgentState = {
-        "user_input": "What do I know about sleep?",
+        "user_input": "/ask What do I know about sleep?",
+        "cleaned_input": "What do I know about sleep?",
         "intent": "query",
         "memories": [],
         "response": "",
@@ -61,13 +59,13 @@ async def test_generate_answer_node_handles_no_memories() -> None:
     assert "saved memories" in result["response"].lower()
 
 
-@pytest.mark.asyncio
 async def test_generate_answer_node_handles_error() -> None:
     """Test that generate_answer node handles LLM errors gracefully."""
     from src.agent.nodes.generate_answer import generate_answer
 
     state: AgentState = {
-        "user_input": "What do I know about habits?",
+        "user_input": "/ask What do I know about habits?",
+        "cleaned_input": "What do I know about habits?",
         "intent": "query",
         "memories": [{"content": "test memory"}],
         "response": "",
@@ -80,7 +78,7 @@ async def test_generate_answer_node_handles_error() -> None:
             mock_settings_instance.llm_model = "gpt-4o-mini"
             mock_settings_instance.llm_provider = "openai"
             mock_settings_instance.openai_api_key = "test-key"
-            mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1/models"
+            mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1"
             mock_settings.return_value = mock_settings_instance
 
             mock_model = MagicMock()

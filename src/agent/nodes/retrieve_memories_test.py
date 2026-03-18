@@ -2,18 +2,16 @@
 
 from unittest.mock import patch
 
-import pytest
-
 from src.agent.state import AgentState
 
 
-@pytest.mark.asyncio
 async def test_retrieve_memories_node_searches_database() -> None:
     """Test that retrieve_memories node searches for relevant memories."""
     from src.agent.nodes.retrieve_memories import retrieve_memories
 
     state: AgentState = {
-        "user_input": "What do I know about habits?",
+        "user_input": "/ask What do I know about habits?",
+        "cleaned_input": "What do I know about habits?",
         "intent": "query",
         "memories": [],
         "response": "",
@@ -30,16 +28,16 @@ async def test_retrieve_memories_node_searches_database() -> None:
         result = await retrieve_memories(state)
 
         assert result["memories"] == mock_memories
-        mock_search.assert_called_once_with(state["user_input"], top_k=3)
+        mock_search.assert_called_once_with(state["cleaned_input"], top_k=3)
 
 
-@pytest.mark.asyncio
 async def test_retrieve_memories_node_handles_no_results() -> None:
     """Test that retrieve_memories node handles empty results."""
     from src.agent.nodes.retrieve_memories import retrieve_memories
 
     state: AgentState = {
-        "user_input": "What do I know about sleep?",
+        "user_input": "/ask What do I know about sleep?",
+        "cleaned_input": "What do I know about sleep?",
         "intent": "query",
         "memories": [],
         "response": "",
@@ -54,13 +52,13 @@ async def test_retrieve_memories_node_handles_no_results() -> None:
         assert result["memories"] == []
 
 
-@pytest.mark.asyncio
 async def test_retrieve_memories_node_handles_error() -> None:
     """Test that retrieve_memories node handles errors gracefully."""
     from src.agent.nodes.retrieve_memories import retrieve_memories
 
     state: AgentState = {
-        "user_input": "What do I know about habits?",
+        "user_input": "/ask What do I know about habits?",
+        "cleaned_input": "What do I know about habits?",
         "intent": "query",
         "memories": [],
         "response": "",

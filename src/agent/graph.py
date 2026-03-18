@@ -7,15 +7,17 @@ Per AGENTS.md convention: graph.py is assembly only — no business logic here.
 from typing import Any
 
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from src.agent.nodes.generate_answer import generate_answer
 from src.agent.nodes.intent_router import intent_router
 from src.agent.nodes.retrieve_memories import retrieve_memories
 from src.agent.nodes.save_memory import save_memory
+from src.agent.routing import route_by_intent
 from src.agent.state import AgentState
 
 
-def build_graph() -> StateGraph[AgentState, Any]:
+def build_graph() -> CompiledStateGraph[Any, Any]:
     """Build and compile the ThinkBack agent graph.
 
     The graph follows this flow:
@@ -31,6 +33,7 @@ def build_graph() -> StateGraph[AgentState, Any]:
         >>> graph = build_graph()
         >>> result = graph.invoke({
         ...     "user_input": "/save test memory",
+        ...     "cleaned_input": "",
         ...     "intent": None,
         ...     "memories": [],
         ...     "response": "",
@@ -67,22 +70,4 @@ def build_graph() -> StateGraph[AgentState, Any]:
     graph.add_edge("save_memory", END)
     graph.add_edge("generate_answer", END)
 
-    return graph.compile()  # type: ignore[return-value]
-
-
-def route_by_intent(state: AgentState) -> str:
-    """Route based on the detected intent.
-
-    Args:
-        state: The current agent state.
-
-    Returns:
-        The next node to route to: "save", "query", or "error".
-    """
-    if state["error"] is not None:
-        return "error"
-    if state["intent"] == "save":
-        return "save"
-    if state["intent"] == "query":
-        return "query"
-    return "error"
+    return graph.compile()

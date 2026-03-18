@@ -1,28 +1,33 @@
 """Intent router node for the ThinkBack agent.
 
 This node routes user input to the appropriate flow based on the command.
+It also strips command prefixes and sets cleaned_input for downstream nodes.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 from src.agent.state import AgentState
 
 
-async def intent_router(state: AgentState) -> AgentState:
+async def intent_router(state: AgentState) -> dict[str, Any]:
     """Route the user input to the appropriate intent.
 
     Detects whether the user wants to save a memory or query knowledge
-    based on the command prefix (/save or /ask).
+    based on the command prefix (/save or /ask). Strips the command
+    prefix and stores the cleaned text in cleaned_input.
 
     Args:
         state: The current agent state containing user_input.
 
     Returns:
-        Updated agent state with the detected intent.
+        Partial state update with intent and cleaned_input.
 
     Example:
         >>> state = {
         ...     "user_input": "/save Consistency beats intensity",
+        ...     "cleaned_input": "",
         ...     "intent": None,
         ...     "memories": [],
         ...     "response": "",
@@ -31,23 +36,34 @@ async def intent_router(state: AgentState) -> AgentState:
         >>> result = await intent_router(state)
         >>> result["intent"]
         'save'
+        >>> result["cleaned_input"]
+        'Consistency beats intensity'
     """
-    user_input = state["user_input"].strip().lower()
+    user_input = state["user_input"].strip()
+    user_input_lower = user_input.lower()
 
-    if user_input.startswith("/save"):
+    if user_input_lower.startswith("/save"):
+        cleaned = user_input[len("/save") :].strip()
         return {
-            **state,
             "intent": "save",
+            "cleaned_input": cleaned,
         }
-    elif user_input.startswith("/ask") or user_input.startswith("/query"):
+    elif user_input_lower.startswith("/ask"):
+        cleaned = user_input[len("/ask") :].strip()
         return {
-            **state,
             "intent": "query",
+            "cleaned_input": cleaned,
+        }
+    elif user_input_lower.startswith("/query"):
+        cleaned = user_input[len("/query") :].strip()
+        return {
+            "intent": "query",
+            "cleaned_input": cleaned,
         }
     else:
         return {
-            **state,
             "intent": None,
+            "cleaned_input": user_input,
             "error": "Unknown command. Use /save to save knowledge or /ask to query.",
             "response": "Unknown command. Use /save to save knowledge or /ask to query.",
         }

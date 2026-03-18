@@ -35,7 +35,6 @@ def mock_context() -> MagicMock:
     return context
 
 
-@pytest.mark.asyncio
 async def test_handle_message_save_command(
     mock_update: Update,
     mock_context: MagicMock,
@@ -47,6 +46,7 @@ async def test_handle_message_save_command(
     mock_graph.ainvoke = AsyncMock(
         return_value={
             "user_input": "/save test memory",
+            "cleaned_input": "test memory",
             "intent": "save",
             "memories": [],
             "response": "Memory saved.",
@@ -54,13 +54,12 @@ async def test_handle_message_save_command(
         }
     )
 
-    with patch("src.api.bot.graph", mock_graph):
+    with patch("src.api.bot._get_graph", return_value=mock_graph):
         await handle_message(mock_update, mock_context)
 
         mock_update.effective_message.reply_text.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_handle_message_ask_command(
     mock_update: Update,
     mock_context: MagicMock,
@@ -75,6 +74,7 @@ async def test_handle_message_ask_command(
     mock_graph.ainvoke = AsyncMock(
         return_value={
             "user_input": "/ask What do I know about habits?",
+            "cleaned_input": "What do I know about habits?",
             "intent": "query",
             "memories": [{"content": "test memory"}],
             "response": "From your saved memories: test memory",
@@ -82,13 +82,12 @@ async def test_handle_message_ask_command(
         }
     )
 
-    with patch("src.api.bot.graph", mock_graph):
+    with patch("src.api.bot._get_graph", return_value=mock_graph):
         await handle_message(mock_update, mock_context)
 
         mock_update.effective_message.reply_text.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_handle_message_unknown_command(
     mock_update: Update,
     mock_context: MagicMock,
@@ -103,6 +102,7 @@ async def test_handle_message_unknown_command(
     mock_graph.ainvoke = AsyncMock(
         return_value={
             "user_input": "/unknown command",
+            "cleaned_input": "/unknown command",
             "intent": None,
             "memories": [],
             "response": "Unknown command. Use /save to save knowledge or /ask to query.",
@@ -110,18 +110,16 @@ async def test_handle_message_unknown_command(
         }
     )
 
-    with patch("src.api.bot.graph", mock_graph):
+    with patch("src.api.bot._get_graph", return_value=mock_graph):
         await handle_message(mock_update, mock_context)
 
         mock_update.effective_message.reply_text.assert_called_once()
 
 
-def test_start_command(mock_update: Update, mock_context: MagicMock) -> None:
+async def test_start_command(mock_update: Update, mock_context: MagicMock) -> None:
     """Test that start_command sends welcome message."""
-    import asyncio
-
     from src.api.bot import start_command
 
-    asyncio.run(start_command(mock_update, mock_context))
+    await start_command(mock_update, mock_context)
 
     mock_update.effective_message.reply_text.assert_called_once()

@@ -38,7 +38,8 @@ class AgentState(TypedDict):
     will accumulate values across graph steps.
 
     Attributes:
-        user_input: The current user input from Telegram.
+        user_input: The raw user input from Telegram (including command prefix).
+        cleaned_input: The user input with command prefix stripped.
         intent: The detected intent ('save', 'query', or None).
         memories: List of retrieved or saved memory records. Accumulates across steps.
         response: The final response to send to the user.
@@ -46,6 +47,7 @@ class AgentState(TypedDict):
     """
 
     user_input: str
+    cleaned_input: str
     intent: Literal["save", "query"] | None
     memories: Annotated[list[dict[str, Any]], add_memories]
     response: str

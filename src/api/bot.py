@@ -5,6 +5,12 @@ This module handles the Telegram bot commands and message routing.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
+
+
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -14,11 +20,23 @@ from telegram.ext import (
     filters,
 )
 
-from src.agent.graph import build_graph
 from src.core.config import Settings
 
-# Build the graph once at module load
-graph = build_graph()
+_graph: CompiledStateGraph[Any, Any] | None = None
+
+
+def _get_graph() -> CompiledStateGraph[Any, Any]:
+    """Lazily build and cache the agent graph.
+
+    Returns:
+        Compiled LangGraph instance.
+    """
+    global _graph  # noqa: PLW0603
+    if _graph is None:
+        from src.agent.graph import build_graph
+
+        _graph = build_graph()
+    return _graph
 
 
 async def start_command(
@@ -50,10 +68,13 @@ async def handle_message(
     """
     user_input = update.message.text  # type: ignore[union-attr]
 
+    graph = _get_graph()
+
     # Invoke the agent graph
-    result = await graph.ainvoke(  # type: ignore[attr-defined]
+    result = await graph.ainvoke(
         {
             "user_input": user_input,
+            "cleaned_input": "",
             "intent": None,
             "memories": [],
             "response": "",

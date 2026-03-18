@@ -8,6 +8,8 @@ This module handles all vector store operations including:
 
 from __future__ import annotations
 
+import logging
+from functools import lru_cache
 from typing import Any
 
 from langchain_community.vectorstores import SupabaseVectorStore
@@ -17,9 +19,12 @@ from pydantic import SecretStr
 
 from src.db.client import get_supabase_client
 
+logger = logging.getLogger(__name__)
 
+
+@lru_cache
 def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
-    """Create and return the embeddings instance.
+    """Create and return the embeddings instance (cached singleton).
 
     Returns:
         GoogleGenerativeAIEmbeddings configured instance.
@@ -30,13 +35,13 @@ def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
     return GoogleGenerativeAIEmbeddings(
         model=settings.embedding_model,
         api_key=SecretStr(settings.gemini_api_key),
-        # task_type="RETRIEVAL_DOCUMENT",
-        output_dimensionality=768,
+        output_dimensionality=settings.vector_dimensions,
     )
 
 
+@lru_cache
 def _get_vector_store() -> SupabaseVectorStore:
-    """Create and return the Supabase vector store instance.
+    """Create and return the Supabase vector store instance (cached singleton).
 
     Returns:
         SupabaseVectorStore configured instance.
@@ -52,7 +57,7 @@ def _get_vector_store() -> SupabaseVectorStore:
     )
 
 
-def get_embedding(text: str) -> list[float]:
+async def get_embedding(text: str) -> list[float]:
     """Generate an embedding vector for the given text.
 
     Uses Google Gemini Embeddings to generate a vector representation
@@ -65,19 +70,19 @@ def get_embedding(text: str) -> list[float]:
         A list of floats representing the embedding vector.
 
     Example:
-        >>> embedding = get_embedding("Hello, world!")
+        >>> embedding = await get_embedding("Hello, world!")
         >>> len(embedding)
         768
     """
     embeddings = _get_embeddings()
-    return embeddings.embed_query(text)
+    return await embeddings.aembed_query(text)
 
 
 async def save_memory(content: str, summary: str | None = None) -> dict[str, Any]:
     """Save a memory with its embedding to the database.
 
     Args:
-        content: The memory content text.
+        content: The memory content text (already cleaned of command prefixes).
         summary: Optional summary of the memory. Defaults to content if not provided.
 
     Returns:
@@ -90,14 +95,12 @@ async def save_memory(content: str, summary: str | None = None) -> dict[str, Any
     """
     vector_store = _get_vector_store()
 
-    content = content.replace("/save", "", 1).strip()
-
     # Create a document with metadata
     metadata = {"summary": summary or content}
     document = Document(page_content=content, metadata=metadata)
 
-    # Use add_documents to insert with embeddings generated automatically
-    ids = vector_store.add_documents([document])
+    # Use aadd_documents to insert with embeddings generated automatically
+    ids = await vector_store.aadd_documents([document])
 
     # Fetch the inserted record to return it
     client = get_supabase_client()
@@ -116,7 +119,7 @@ async def search_memories(
     against stored memory embeddings.
 
     Args:
-        query: The search query text.
+        query: The search query text (already cleaned of command prefixes).
         top_k: Number of results to return. Defaults to 3.
 
     Returns:
@@ -129,13 +132,11 @@ async def search_memories(
     """
     vector_store = _get_vector_store()
 
-    query = query.replace("/ask", "", 1).strip()
-
-    # Use similarity_search_with_relevance_scores to get documents with scores
+    # Use async variant for similarity search
     try:
         docs_with_scores = vector_store.similarity_search_with_relevance_scores(query, k=top_k)
     except Exception as e:
-        print("Error searching memories:", e)
+        logger.exception("Error searching memories: %s", e)
         return []
 
     # Convert to the expected format
@@ -147,5 +148,5 @@ async def search_memories(
             "similarity": score,
         }
         results.append(result)
-    print("results", results)
+    logger.debug("Search results: %s", results)
     return results

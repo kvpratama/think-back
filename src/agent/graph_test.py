@@ -1,7 +1,5 @@
 """Tests for the ThinkBack agent graph."""
 
-import pytest
-
 from src.agent.state import AgentState
 
 
@@ -14,7 +12,6 @@ def test_build_graph_returns_compiled_graph() -> None:
     assert graph is not None
 
 
-@pytest.mark.asyncio
 async def test_graph_save_flow() -> None:
     """Test the save memory flow through the graph."""
     from unittest.mock import patch
@@ -25,6 +22,7 @@ async def test_graph_save_flow() -> None:
 
     initial_state: AgentState = {
         "user_input": "/save Consistency beats intensity",
+        "cleaned_input": "",
         "intent": None,
         "memories": [],
         "response": "",
@@ -34,13 +32,13 @@ async def test_graph_save_flow() -> None:
     with patch("src.agent.nodes.save_memory.db_save_memory") as mock_save:
         mock_save.return_value = {"id": "test-id", "content": "Consistency beats intensity"}
 
-        result = await graph.ainvoke(initial_state)  # type: ignore[attr-defined]
+        result = await graph.ainvoke(initial_state)
 
         assert result["intent"] == "save"
         assert result["response"] == "Memory saved."
+        assert result["cleaned_input"] == "Consistency beats intensity"
 
 
-@pytest.mark.asyncio
 async def test_graph_query_flow() -> None:
     """Test the query knowledge flow through the graph."""
     from unittest.mock import MagicMock, patch
@@ -51,6 +49,7 @@ async def test_graph_query_flow() -> None:
 
     initial_state: AgentState = {
         "user_input": "/ask What do I know about habits?",
+        "cleaned_input": "",
         "intent": None,
         "memories": [],
         "response": "",
@@ -64,7 +63,7 @@ async def test_graph_query_flow() -> None:
                 mock_settings_instance.llm_model = "gpt-4o-mini"
                 mock_settings_instance.llm_provider = "openai"
                 mock_settings_instance.openai_api_key = "test-key"
-                mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1/models"
+                mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1"
                 mock_settings.return_value = mock_settings_instance
 
                 mock_search.return_value = [
@@ -77,7 +76,7 @@ async def test_graph_query_flow() -> None:
                 )
                 mock_init_model.return_value = mock_model
 
-                result = await graph.ainvoke(initial_state)  # type: ignore[attr-defined]
+                result = await graph.ainvoke(initial_state)
 
                 assert result["intent"] == "query"
                 assert "From your saved memories" in result["response"]

@@ -5,22 +5,27 @@ This node handles searching for relevant memories using vector similarity.
 
 from __future__ import annotations
 
+from typing import Any
+
 from src.agent.state import AgentState
 from src.db.vector_store import search_memories as db_search_memories
 
 
-async def retrieve_memories(state: AgentState) -> AgentState:
+async def retrieve_memories(state: AgentState) -> dict[str, Any]:
     """Retrieve relevant memories from the vector database.
 
+    Uses cleaned_input (with command prefix already stripped by intent_router).
+
     Args:
-        state: The current agent state containing user_input as the query.
+        state: The current agent state containing cleaned_input as the query.
 
     Returns:
-        Updated agent state with retrieved memories.
+        Partial state update with retrieved memories.
 
     Example:
         >>> state = {
-        ...     "user_input": "What do I know about habits?",
+        ...     "user_input": "/ask What do I know about habits?",
+        ...     "cleaned_input": "What do I know about habits?",
         ...     "intent": "query",
         ...     "memories": [],
         ...     "response": "",
@@ -31,14 +36,12 @@ async def retrieve_memories(state: AgentState) -> AgentState:
         True
     """
     try:
-        memories = await db_search_memories(state["user_input"], top_k=3)
+        memories = await db_search_memories(state["cleaned_input"], top_k=3)
         return {
-            **state,
             "memories": memories,
         }
     except Exception as e:
         return {
-            **state,
             "error": f"Failed to retrieve memories: {e!s}",
             "memories": [],
         }

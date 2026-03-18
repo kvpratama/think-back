@@ -5,6 +5,8 @@ This node handles generating responses using the LLM based on retrieved memories
 
 from __future__ import annotations
 
+from typing import Any
+
 from langchain.chat_models import init_chat_model
 
 from src.agent.state import AgentState
@@ -26,18 +28,19 @@ Answer using only these memories. If there are no memories, \
 say you don't have any saved knowledge about this topic yet."""
 
 
-async def generate_answer(state: AgentState) -> AgentState:
+async def generate_answer(state: AgentState) -> dict[str, Any]:
     """Generate an answer using the LLM based on retrieved memories.
 
     Args:
         state: The current agent state containing memories and user_input.
 
     Returns:
-        Updated agent state with the generated response.
+        Partial state update with the generated response.
 
     Example:
         >>> state = {
-        ...     "user_input": "What do I know about habits?",
+        ...     "user_input": "/ask What do I know about habits?",
+        ...     "cleaned_input": "What do I know about habits?",
         ...     "intent": "query",
         ...     "memories": [{"content": "Consistency beats intensity"}],
         ...     "response": "",
@@ -50,7 +53,6 @@ async def generate_answer(state: AgentState) -> AgentState:
     # Handle case with no memories
     if not state["memories"]:
         return {
-            **state,
             "response": (
                 "I don't have any saved memories about this topic yet. Use /save to add knowledge."
             ),
@@ -86,12 +88,10 @@ async def generate_answer(state: AgentState) -> AgentState:
         )
 
         return {
-            **state,
             "response": response_text,
         }
     except Exception as e:
         return {
-            **state,
             "error": f"Failed to generate answer: {e!s}",
             "response": "Sorry, I encountered an error while generating a response.",
         }
