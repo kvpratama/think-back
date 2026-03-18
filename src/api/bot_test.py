@@ -1,9 +1,11 @@
 """Tests for the Telegram bot interface."""
 
+# mypy: disable-error-code="union-attr"
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from telegram import Message, Update, User
+from telegram import Update, User
 
 
 @pytest.fixture
@@ -12,10 +14,9 @@ def mock_update() -> Update:
     mock_user = MagicMock(spec=User)
     mock_user.id = 12345
 
-    mock_message = MagicMock(spec=Message)
+    mock_message = MagicMock()
     mock_message.from_user = mock_user
     mock_message.text = "/save test memory"
-    mock_message.chat_id = 12345
     mock_message.reply_text = AsyncMock()
 
     mock_update = MagicMock(spec=Update)
@@ -56,7 +57,7 @@ async def test_handle_message_save_command(
     with patch("src.api.bot.graph", mock_graph):
         await handle_message(mock_update, mock_context)
 
-        mock_update.effective_message.reply_text.assert_called_once()  # type: ignore[union-attr]
+        mock_update.effective_message.reply_text.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -67,7 +68,7 @@ async def test_handle_message_ask_command(
     """Test that handle_message processes ask command."""
     from src.api.bot import handle_message
 
-    mock_update.effective_message.text = "/ask What do I know about habits?"  # type: ignore[union-attr]
+    mock_update.effective_message.text = "/ask What do I know about habits?"
     mock_update.message.text = "/ask What do I know about habits?"
 
     mock_graph = MagicMock()
@@ -84,7 +85,7 @@ async def test_handle_message_ask_command(
     with patch("src.api.bot.graph", mock_graph):
         await handle_message(mock_update, mock_context)
 
-        mock_update.effective_message.reply_text.assert_called_once()  # type: ignore[union-attr]
+        mock_update.effective_message.reply_text.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -95,7 +96,7 @@ async def test_handle_message_unknown_command(
     """Test that handle_message handles unknown commands."""
     from src.api.bot import handle_message
 
-    mock_update.effective_message.text = "/unknown command"  # type: ignore[union-attr]
+    mock_update.effective_message.text = "/unknown command"
     mock_update.message.text = "/unknown command"
 
     mock_graph = MagicMock()
@@ -112,7 +113,7 @@ async def test_handle_message_unknown_command(
     with patch("src.api.bot.graph", mock_graph):
         await handle_message(mock_update, mock_context)
 
-        mock_update.effective_message.reply_text.assert_called_once()  # type: ignore[union-attr]
+        mock_update.effective_message.reply_text.assert_called_once()
 
 
 def test_start_command(mock_update: Update, mock_context: MagicMock) -> None:
@@ -123,4 +124,4 @@ def test_start_command(mock_update: Update, mock_context: MagicMock) -> None:
 
     asyncio.run(start_command(mock_update, mock_context))
 
-    mock_update.effective_message.reply_text.assert_called_once()  # type: ignore[union-attr]
+    mock_update.effective_message.reply_text.assert_called_once()

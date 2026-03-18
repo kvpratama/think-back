@@ -22,6 +22,8 @@ def test_get_embedding_generates_embedding(
     mock_settings: MagicMock,
 ) -> None:
     """Test that get_embedding generates an embedding for text."""
+    from pydantic import SecretStr
+
     from src.db.vector_store import get_embedding
 
     with patch("src.db.vector_store.GoogleGenerativeAIEmbeddings") as mock_embeddings:
@@ -35,7 +37,8 @@ def test_get_embedding_generates_embedding(
             assert result == [0.1] * 768
             mock_embeddings.assert_called_once_with(
                 model="gemini-embedding-exp-03-16",
-                google_api_key="test-gemini-key",
+                api_key=SecretStr("test-gemini-key"),
+                output_dimensionality=768,
             )
             mock_embedder.embed_query.assert_called_once_with("test text")
 
@@ -48,23 +51,29 @@ async def test_save_memory_inserts_into_database(
     from src.db.vector_store import save_memory
 
     mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.data = [{"id": str(uuid4())}]
+    mock_vector_store = MagicMock()
+    memory_id = str(uuid4())
+    mock_vector_store.add_documents.return_value = [memory_id]
 
-    mock_execute = MagicMock(return_value=mock_response)
-    mock_insert = MagicMock()
-    mock_insert.execute = mock_execute
+    mock_select_response = MagicMock()
+    mock_select_response.data = [{"id": memory_id, "content": "test content"}]
+    mock_select = MagicMock()
+    mock_select.execute.return_value = mock_select_response
+    mock_eq = MagicMock()
+    mock_eq.execute = mock_select
+    mock_select_method = MagicMock(return_value=mock_eq)
     mock_table = MagicMock()
-    mock_table.insert.return_value = mock_insert
+    mock_table.select.return_value = mock_select_method
+    mock_table.eq = mock_select_method
     mock_client.table.return_value = mock_table
 
-    with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
-        with patch("src.core.config.Settings", return_value=mock_settings):
-            with patch("src.db.vector_store.get_embedding", return_value=[0.1] * 768):
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
+        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
+            with patch("src.core.config.Settings", return_value=mock_settings):
                 result = await save_memory("test content")
 
-                mock_client.table.assert_called_once_with("memories")
-                mock_client.table.return_value.insert.assert_called_once()
+                mock_vector_store.add_documents.assert_called_once()
+                mock_client.table.assert_called_with("memories")
                 assert result is not None
 
 
@@ -75,22 +84,19 @@ async def test_search_memories_performs_vector_search(
     """Test that search_memories performs vector similarity search."""
     from src.db.vector_store import search_memories
 
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.data = [
-        {"content": "memory 1", "summary": "summary 1"},
-        {"content": "memory 2", "summary": "summary 2"},
+    mock_vector_store = MagicMock()
+    mock_vector_store.similarity_search_with_relevance_scores.return_value = [
+        (MagicMock(page_content="memory 1", metadata={"summary": "summary 1"}), 0.85),
+        (MagicMock(page_content="memory 2", metadata={"summary": "summary 2"}), 0.75),
     ]
 
-    mock_execute = MagicMock(return_value=mock_response)
-    mock_rpc = MagicMock()
-    mock_rpc.execute = mock_execute
-    mock_client.rpc.return_value = mock_rpc
-
-    with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
         with patch("src.core.config.Settings", return_value=mock_settings):
-            with patch("src.db.vector_store.get_embedding", return_value=[0.1] * 768):
-                result = await search_memories("test query", top_k=3)
+            result = await search_memories("test query", top_k=3)
 
-                assert len(result) == 2
-                mock_client.rpc.assert_called_once()
+            assert len(result) == 2
+            assert result[0]["content"] == "memory 1"
+            assert result[0]["similarity"] == 0.85
+            mock_vector_store.similarity_search_with_relevance_scores.assert_called_once_with(
+                "test query", k=3
+            )

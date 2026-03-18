@@ -1,6 +1,6 @@
-"""Vector store operations for memory storage and retrieval.
+"""Vector store operations for memory storage and retrieval using LangChain Supabase integration.
 
-This module handles all pgvector operations including:
+This module handles all vector store operations including:
 - Generating embeddings using Gemini
 - Saving memories with vector embeddings
 - Searching memories using vector similarity
@@ -10,9 +10,46 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_community.vectorstores import SupabaseVectorStore
+from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from pydantic import SecretStr
 
 from src.db.client import get_supabase_client
+
+
+def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
+    """Create and return the embeddings instance.
+
+    Returns:
+        GoogleGenerativeAIEmbeddings configured instance.
+    """
+    from src.core.config import Settings
+
+    settings = Settings()
+    return GoogleGenerativeAIEmbeddings(
+        model=settings.embedding_model,
+        api_key=SecretStr(settings.gemini_api_key),
+        # task_type="RETRIEVAL_DOCUMENT",
+        output_dimensionality=768,
+    )
+
+
+def _get_vector_store() -> SupabaseVectorStore:
+    """Create and return the Supabase vector store instance.
+
+    Returns:
+        SupabaseVectorStore configured instance.
+    """
+    client = get_supabase_client()
+    embeddings = _get_embeddings()
+
+    return SupabaseVectorStore(
+        embedding=embeddings,
+        client=client,
+        table_name="memories",
+        query_name="match_memories",
+    )
 
 
 def get_embedding(text: str) -> list[float]:
@@ -32,13 +69,7 @@ def get_embedding(text: str) -> list[float]:
         >>> len(embedding)
         768
     """
-    from src.core.config import Settings
-
-    settings = Settings()
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model=settings.embedding_model,
-        google_api_key=settings.gemini_api_key,
-    )
+    embeddings = _get_embeddings()
     return embeddings.embed_query(text)
 
 
@@ -57,20 +88,18 @@ async def save_memory(content: str, summary: str | None = None) -> dict[str, Any
         >>> result["id"]
         UUID('...')
     """
-    embedding = get_embedding(content)
+    vector_store = _get_vector_store()
 
+    # Create a document with metadata
+    metadata = {"summary": summary or content}
+    document = Document(page_content=content, metadata=metadata)
+
+    # Use add_documents to insert with embeddings generated automatically
+    ids = vector_store.add_documents([document])
+
+    # Fetch the inserted record to return it
     client = get_supabase_client()
-    response = (
-        client.table("memories")
-        .insert(
-            {
-                "content": content,
-                "summary": summary or content,
-                "embedding": embedding,
-            }
-        )
-        .execute()
-    )
+    response = client.table("memories").select("*").eq("id", ids[0]).execute()
 
     return response.data[0]  # type: ignore[no-any-return]
 
@@ -81,7 +110,7 @@ async def search_memories(
 ) -> list[dict[str, Any]]:
     """Search for memories similar to the query using vector similarity.
 
-    Performs a pgvector similarity search using the embedding of the query
+    Performs similarity search using the embedding of the query
     against stored memory embeddings.
 
     Args:
@@ -96,16 +125,23 @@ async def search_memories(
         >>> for memory in memories:
         ...     print(memory["content"])
     """
-    query_embedding = get_embedding(query)
+    vector_store = _get_vector_store()
 
-    client = get_supabase_client()
-    response = client.rpc(
-        "match_memories",
-        {
-            "query_embedding": query_embedding,
-            "match_threshold": 0.5,
-            "match_count": top_k,
-        },
-    ).execute()
+    # Use similarity_search_with_relevance_scores to get documents with scores
+    try:
+        docs_with_scores = vector_store.similarity_search_with_relevance_scores(query, k=top_k)
+    except Exception as e:
+        print("Error searching memories:", e)
+        return []
 
-    return response.data  # type: ignore[no-any-return]
+    # Convert to the expected format
+    results = []
+    for doc, score in docs_with_scores:
+        result = {
+            "content": doc.page_content,
+            "id": doc.metadata.get("id"),
+            "similarity": score,
+        }
+        results.append(result)
+    print("results", results)
+    return results

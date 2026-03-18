@@ -22,23 +22,25 @@ async def test_generate_answer_node_creates_response() -> None:
         "error": None,
     }
 
-    with patch("src.agent.nodes.generate_answer.ChatOpenAI") as mock_llm_class:
+    with patch("src.agent.nodes.generate_answer.init_chat_model") as mock_init_model:
         with patch("src.core.config.Settings") as mock_settings:
             mock_settings_instance = MagicMock()
             mock_settings_instance.llm_model = "gpt-4o-mini"
+            mock_settings_instance.llm_provider = "openai"
             mock_settings_instance.openai_api_key = "test-key"
+            mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1/models"
             mock_settings.return_value = mock_settings_instance
 
             mock_model = MagicMock()
             mock_model.invoke.return_value.content = (
                 "From your saved memories:\n\n• Consistency beats intensity."
             )
-            mock_llm_class.return_value = mock_model
+            mock_init_model.return_value = mock_model
 
             result = await generate_answer(state)
 
             assert "From your saved memories" in result["response"]
-            mock_llm_class.assert_called_once()
+            mock_init_model.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -72,16 +74,18 @@ async def test_generate_answer_node_handles_error() -> None:
         "error": None,
     }
 
-    with patch("src.agent.nodes.generate_answer.ChatOpenAI") as mock_llm_class:
+    with patch("src.agent.nodes.generate_answer.init_chat_model") as mock_init_model:
         with patch("src.core.config.Settings") as mock_settings:
             mock_settings_instance = MagicMock()
             mock_settings_instance.llm_model = "gpt-4o-mini"
+            mock_settings_instance.llm_provider = "openai"
             mock_settings_instance.openai_api_key = "test-key"
+            mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1/models"
             mock_settings.return_value = mock_settings_instance
 
             mock_model = MagicMock()
             mock_model.invoke.side_effect = Exception("API error")
-            mock_llm_class.return_value = mock_model
+            mock_init_model.return_value = mock_model
 
             result = await generate_answer(state)
 

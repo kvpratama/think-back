@@ -27,14 +27,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Required settings
-    supabase_url: str
-    supabase_key: str
-    openai_api_key: str
-    gemini_api_key: str
-    telegram_bot_token: str
+    # Required settings (loaded from environment variables)
+    supabase_url: str = ""
+    supabase_key: str = ""
+    openai_api_key: str = ""
+    gemini_api_key: str = ""
+    telegram_bot_token: str = ""
 
     # Optional settings with defaults
     llm_model: str = "gpt-4o-mini"
-    embedding_model: str = "gemini-embedding-exp-03-16"
+    llm_provider: str = "openai"
+    llm_provider_base_url: str = "https://api.openai.com/v1/models"
+    embedding_model: str = "gemini-embedding-001"
     vector_dimensions: int = 768

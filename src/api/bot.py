@@ -51,7 +51,7 @@ async def handle_message(
     user_input = update.message.text  # type: ignore[union-attr]
 
     # Invoke the agent graph
-    result = await graph.ainvoke(
+    result = await graph.ainvoke(  # type: ignore[attr-defined]
         {
             "user_input": user_input,
             "intent": None,
@@ -66,7 +66,7 @@ async def handle_message(
     await update.message.reply_text(response)  # type: ignore[union-attr]
 
 
-def create_application() -> Application:
+def create_application() -> Application:  # type: ignore[type-arg]
     """Create and configure the Telegram bot application.
 
     Returns:

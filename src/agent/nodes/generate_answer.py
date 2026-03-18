@@ -5,7 +5,7 @@ This node handles generating responses using the LLM based on retrieved memories
 
 from __future__ import annotations
 
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import init_chat_model
 
 from src.agent.state import AgentState
 
@@ -64,7 +64,14 @@ async def generate_answer(state: AgentState) -> AgentState:
         from src.core.config import Settings
 
         settings = Settings()
-        llm = ChatOpenAI(model=settings.llm_model, api_key=settings.openai_api_key)
+        llm = init_chat_model(
+            model=settings.llm_model,
+            model_provider=settings.llm_provider,
+            api_key=settings.openai_api_key,
+            base_url=settings.llm_provider_base_url,
+            temperature=0,
+            streaming=False,
+        )
 
         prompt = RAG_PROMPT.format(
             question=state["user_input"],
@@ -73,9 +80,14 @@ async def generate_answer(state: AgentState) -> AgentState:
 
         response = llm.invoke(prompt)
 
+        # Extract text content from the response
+        response_text = (
+            response.content if isinstance(response.content, str) else str(response.content)
+        )
+
         return {
             **state,
-            "response": response.content,  # type: ignore[attr-defined]
+            "response": response_text,
         }
     except Exception as e:
         return {

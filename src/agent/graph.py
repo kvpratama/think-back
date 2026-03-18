@@ -4,6 +4,8 @@ This module wires together all the nodes into a LangGraph workflow.
 Per AGENTS.md convention: graph.py is assembly only — no business logic here.
 """
 
+from typing import Any
+
 from langgraph.graph import END, StateGraph
 
 from src.agent.nodes.generate_answer import generate_answer
@@ -13,7 +15,7 @@ from src.agent.nodes.save_memory import save_memory
 from src.agent.state import AgentState
 
 
-def build_graph() -> StateGraph:
+def build_graph() -> StateGraph[AgentState, Any]:
     """Build and compile the ThinkBack agent graph.
 
     The graph follows this flow:
@@ -65,7 +67,7 @@ def build_graph() -> StateGraph:
     graph.add_edge("save_memory", END)
     graph.add_edge("generate_answer", END)
 
-    return graph.compile()
+    return graph.compile()  # type: ignore[return-value]
 
 
 def route_by_intent(state: AgentState) -> str:
