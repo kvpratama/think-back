@@ -72,5 +72,5 @@ supabase gen types typescript --local > lib/supabase/database.types.ts
 supabase gen types --lang=python --local > supabase/database_types.py
 
 # 6. Remember to regenerate schema.sql
-supabase db dump --local > supabase/schemas/schema.sql
+supabase db dump --local > supabase/schema.sql
 ```

@@ -9,12 +9,12 @@
 -- Each row is one deliberately saved piece of knowledge
 -- ------------------------------------------------------------
 create table if not exists public.memories (
-  -- Skill ref: schema-primary-keys — UUIDv7 is time-ordered, avoids index fragmentation
+  -- Skill ref: schema-primary-keys — UUIDv4
   id              uuid        primary key default gen_random_uuid(),
 
   -- Skill ref: schema-data-types — use text not varchar(n), no artificial limits
   content         text        not null,
-  summary         text        not null,
+  metadata        jsonb       default '{}'::jsonb,
   source          text,                         -- nullable: user may not always specify
 
   -- pgvector column — 768 dims matches gemini-embedding-001

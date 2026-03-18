@@ -49,9 +49,9 @@ class PublicMemories(BaseModel):
     embedding: list[Any] = Field(alias="embedding")
     id: uuid.UUID = Field(alias="id")
     last_reviewed_at: Optional[datetime.datetime] = Field(alias="last_reviewed_at")
+    metadata: Optional[Json[Any]] = Field(alias="metadata")
     review_count: int = Field(alias="review_count")
     source: Optional[str] = Field(alias="source")
-    summary: str = Field(alias="summary")
     test_score_avg: float = Field(alias="test_score_avg")
 
 class PublicMemoriesInsert(TypedDict):
@@ -60,9 +60,9 @@ class PublicMemoriesInsert(TypedDict):
     embedding: Annotated[list[Any], Field(alias="embedding")]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
     last_reviewed_at: NotRequired[Annotated[datetime.datetime, Field(alias="last_reviewed_at")]]
+    metadata: NotRequired[Annotated[Json[Any], Field(alias="metadata")]]
     review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
     source: NotRequired[Annotated[str, Field(alias="source")]]
-    summary: Annotated[str, Field(alias="summary")]
     test_score_avg: NotRequired[Annotated[float, Field(alias="test_score_avg")]]
 
 class PublicMemoriesUpdate(TypedDict):
@@ -71,9 +71,9 @@ class PublicMemoriesUpdate(TypedDict):
     embedding: NotRequired[Annotated[list[Any], Field(alias="embedding")]]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
     last_reviewed_at: NotRequired[Annotated[datetime.datetime, Field(alias="last_reviewed_at")]]
+    metadata: NotRequired[Annotated[Json[Any], Field(alias="metadata")]]
     review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
     source: NotRequired[Annotated[str, Field(alias="source")]]
-    summary: NotRequired[Annotated[str, Field(alias="summary")]]
     test_score_avg: NotRequired[Annotated[float, Field(alias="test_score_avg")]]
 
 class PublicTags(BaseModel):
@@ -176,7 +176,6 @@ class PublicMemoriesWithTags(BaseModel):
     last_reviewed_at: Optional[datetime.datetime] = Field(alias="last_reviewed_at")
     review_count: Optional[int] = Field(alias="review_count")
     source: Optional[str] = Field(alias="source")
-    summary: Optional[str] = Field(alias="summary")
     tags: Optional[List[str]] = Field(alias="tags")
     test_score_avg: Optional[float] = Field(alias="test_score_avg")
 
@@ -188,5 +187,4 @@ class PublicSurfacingCandidates(BaseModel):
     review_count: Optional[int] = Field(alias="review_count")
     reviewed_recently: Optional[bool] = Field(alias="reviewed_recently")
     source: Optional[str] = Field(alias="source")
-    summary: Optional[str] = Field(alias="summary")
     test_score_avg: Optional[float] = Field(alias="test_score_avg")
