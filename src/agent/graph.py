@@ -6,6 +6,8 @@ Per AGENTS.md convention: graph.py is assembly only — no business logic here.
 
 from typing import Any
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -13,11 +15,12 @@ from src.agent.nodes.generate_answer import generate_answer
 from src.agent.nodes.intent_router import intent_router
 from src.agent.nodes.retrieve_memories import retrieve_memories
 from src.agent.nodes.save_memory import save_memory
-from src.agent.routing import route_by_intent
 from src.agent.state import AgentState
 
 
-def build_graph() -> CompiledStateGraph[Any, Any]:
+def build_graph(
+    checkpointer: BaseCheckpointSaver[Any] | None = None,
+) -> CompiledStateGraph[Any, Any]:
     """Build and compile the ThinkBack agent graph.
 
     The graph follows this flow:
@@ -52,17 +55,6 @@ def build_graph() -> CompiledStateGraph[Any, Any]:
     # Set entry point
     graph.set_entry_point("intent_router")
 
-    # Add conditional edges from intent_router
-    graph.add_conditional_edges(
-        "intent_router",
-        route_by_intent,
-        {
-            "save": "save_memory",
-            "query": "retrieve_memories",
-            "error": END,
-        },
-    )
-
     # Add edge from retrieve_memories to generate_answer
     graph.add_edge("retrieve_memories", "generate_answer")
 
@@ -70,4 +62,6 @@ def build_graph() -> CompiledStateGraph[Any, Any]:
     graph.add_edge("save_memory", END)
     graph.add_edge("generate_answer", END)
 
-    return graph.compile()
+    if checkpointer is None or not isinstance(checkpointer, BaseCheckpointSaver):
+        return graph.compile(checkpointer=InMemorySaver())
+    return graph.compile(checkpointer=checkpointer)

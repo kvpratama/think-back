@@ -18,9 +18,10 @@ async def test_intent_router_detects_save_intent() -> None:
     }
 
     result = await intent_router(state)
+    update = result.update or {}
 
-    assert result["intent"] == "save"
-    assert result["cleaned_input"] == "Consistency beats intensity"
+    assert update["intent"] == "save"
+    assert update["cleaned_input"] == "Consistency beats intensity"
 
 
 async def test_intent_router_detects_query_intent() -> None:
@@ -38,9 +39,10 @@ async def test_intent_router_detects_query_intent() -> None:
     }
 
     result = await intent_router(state)
+    update = result.update or {}
 
-    assert result["intent"] == "query"
-    assert result["cleaned_input"] == "What do I know about habits?"
+    assert update["intent"] == "query"
+    assert update["cleaned_input"] == "What do I know about habits?"
 
 
 async def test_intent_router_detects_query_command() -> None:
@@ -58,9 +60,10 @@ async def test_intent_router_detects_query_command() -> None:
     }
 
     result = await intent_router(state)
+    update = result.update or {}
 
-    assert result["intent"] == "query"
-    assert result["cleaned_input"] == "What are my habits?"
+    assert update["intent"] == "query"
+    assert update["cleaned_input"] == "What are my habits?"
 
 
 async def test_intent_router_handles_unknown_intent() -> None:
@@ -78,9 +81,10 @@ async def test_intent_router_handles_unknown_intent() -> None:
     }
 
     result = await intent_router(state)
+    update = result.update or {}
 
-    assert result["intent"] is None
-    assert result["error"] is not None
+    assert update["intent"] is None
+    assert update["error"] is not None
 
 
 async def test_intent_router_strips_whitespace() -> None:
@@ -98,6 +102,7 @@ async def test_intent_router_strips_whitespace() -> None:
     }
 
     result = await intent_router(state)
+    update = result.update or {}
 
-    assert result["intent"] == "save"
-    assert result["cleaned_input"] == "Remember this"
+    assert update["intent"] == "save"
+    assert update["cleaned_input"] == "Remember this"

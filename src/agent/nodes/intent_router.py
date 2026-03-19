@@ -6,12 +6,16 @@ It also strips command prefixes and sets cleaned_input for downstream nodes.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Literal
+
+from langgraph.types import Command
 
 from src.agent.state import AgentState
 
 
-async def intent_router(state: AgentState) -> dict[str, Any]:
+async def intent_router(
+    state: AgentState,
+) -> Command[Literal["save_memory", "retrieve_memories", "__end__"]]:
     """Route the user input to the appropriate intent.
 
     Detects whether the user wants to save a memory or query knowledge
@@ -44,26 +48,23 @@ async def intent_router(state: AgentState) -> dict[str, Any]:
 
     if user_input_lower.startswith("/save"):
         cleaned = user_input[len("/save") :].strip()
-        return {
-            "intent": "save",
-            "cleaned_input": cleaned,
-        }
-    elif user_input_lower.startswith("/ask"):
-        cleaned = user_input[len("/ask") :].strip()
-        return {
-            "intent": "query",
-            "cleaned_input": cleaned,
-        }
-    elif user_input_lower.startswith("/query"):
-        cleaned = user_input[len("/query") :].strip()
-        return {
-            "intent": "query",
-            "cleaned_input": cleaned,
-        }
+        return Command(update={"intent": "save", "cleaned_input": cleaned}, goto="save_memory")
+    elif user_input_lower.startswith("/ask") or user_input_lower.startswith("/query"):
+        cleaned = (
+            user_input[len("/ask") :].strip()
+            if user_input_lower.startswith("/ask")
+            else user_input[len("/query") :].strip()
+        )
+        return Command(
+            update={"intent": "query", "cleaned_input": cleaned}, goto="retrieve_memories"
+        )
     else:
-        return {
-            "intent": None,
-            "cleaned_input": user_input,
-            "error": "Unknown command. Use /save to save knowledge or /ask to query.",
-            "response": "Unknown command. Use /save to save knowledge or /ask to query.",
-        }
+        return Command(
+            update={
+                "intent": None,
+                "cleaned_input": user_input,
+                "error": "Unknown command. Use /save or /ask.",
+                "response": "Unknown command. Use /save or /ask.",
+            },
+            goto="__end__",
+        )

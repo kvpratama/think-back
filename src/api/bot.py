@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
 
-
+from langgraph.checkpoint.memory import InMemorySaver
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -23,6 +23,8 @@ from telegram.ext import (
 from src.core.config import Settings
 
 _graph: CompiledStateGraph[Any, Any] | None = None
+# Initialize the saver outside the getter so it survives graph recompilation
+_memory_saver = InMemorySaver()
 
 
 def _get_graph() -> CompiledStateGraph[Any, Any]:
@@ -35,7 +37,7 @@ def _get_graph() -> CompiledStateGraph[Any, Any]:
     if _graph is None:
         from src.agent.graph import build_graph
 
-        _graph = build_graph()
+        _graph = build_graph(checkpointer=_memory_saver)
     return _graph
 
 
@@ -67,6 +69,7 @@ async def handle_message(
         context: The Telegram context.
     """
     user_input = update.message.text  # type: ignore[union-attr]
+    chat = update.message.chat  # type: ignore[union-attr]
 
     graph = _get_graph()
 
@@ -79,7 +82,12 @@ async def handle_message(
             "memories": [],
             "response": "",
             "error": None,
-        }
+        },
+        config={
+            "configurable": {
+                "thread_id": str(chat.id),
+            }
+        },
     )
 
     # Send the response

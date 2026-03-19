@@ -33,7 +33,7 @@ async def test_graph_save_flow() -> None:
     with patch("src.agent.nodes.save_memory.db_save_memory") as mock_save:
         mock_save.return_value = {"id": "test-id", "content": "Consistency beats intensity"}
 
-        result = await graph.ainvoke(initial_state)
+        result = await graph.ainvoke(initial_state, config={"configurable": {"thread_id": "test"}})
 
         assert result["intent"] == "save"
         assert result["response"] == "Memory saved."
@@ -78,7 +78,9 @@ async def test_graph_query_flow() -> None:
                 )
                 mock_init_model.return_value = mock_model
 
-                result = await graph.ainvoke(initial_state)
+                result = await graph.ainvoke(
+                    initial_state, config={"configurable": {"thread_id": "test"}}
+                )
 
                 assert result["intent"] == "query"
                 assert "From your saved memories" in result["response"]
