@@ -18,6 +18,7 @@ async def test_generate_answer_node_creates_response() -> None:
         ],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     with patch("src.agent.nodes.generate_answer.init_chat_model") as mock_init_model:
@@ -52,6 +53,7 @@ async def test_generate_answer_node_handles_no_memories() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     result = await generate_answer(state)
@@ -70,6 +72,7 @@ async def test_generate_answer_node_handles_error() -> None:
         "memories": [{"content": "test memory"}],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     with patch("src.agent.nodes.generate_answer.init_chat_model") as mock_init_model:

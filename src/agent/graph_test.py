@@ -27,6 +27,7 @@ async def test_graph_save_flow() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     with patch("src.agent.nodes.save_memory.db_save_memory") as mock_save:
@@ -54,6 +55,7 @@ async def test_graph_query_flow() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     with patch("src.agent.nodes.retrieve_memories.db_search_memories") as mock_search:

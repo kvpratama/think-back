@@ -14,6 +14,7 @@ async def test_intent_router_detects_save_intent() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     result = await intent_router(state)
@@ -33,6 +34,7 @@ async def test_intent_router_detects_query_intent() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     result = await intent_router(state)
@@ -52,6 +54,7 @@ async def test_intent_router_detects_query_command() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     result = await intent_router(state)
@@ -71,6 +74,7 @@ async def test_intent_router_handles_unknown_intent() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     result = await intent_router(state)
@@ -90,6 +94,7 @@ async def test_intent_router_strips_whitespace() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     result = await intent_router(state)

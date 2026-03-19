@@ -16,6 +16,7 @@ async def test_save_memory_node_saves_content() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     with patch("src.agent.nodes.save_memory.db_save_memory") as mock_save:
@@ -41,6 +42,7 @@ async def test_save_memory_node_handles_error() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     with patch("src.agent.nodes.save_memory.db_save_memory") as mock_save:

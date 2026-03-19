@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from typing_extensions import TypedDict
+from langgraph.graph import MessagesState
 
 
 def add_memories(
@@ -30,7 +30,7 @@ def add_memories(
     return left + right
 
 
-class AgentState(TypedDict):
+class AgentState(MessagesState):
     """State of the ThinkBack agent.
 
     This TypedDict defines the structure of the agent's state throughout

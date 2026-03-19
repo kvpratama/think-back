@@ -17,7 +17,9 @@ def route_by_intent(state: AgentState) -> str:
     Returns:
         The next node to route to: "save", "query", or "error".
     """
-    if state["error"] is not None:
+
+    error = state.get("error")
+    if error is not None:
         return "error"
     if state["intent"] == "save":
         return "save"

@@ -13,6 +13,7 @@ def test_agent_state_has_required_fields() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     assert state["user_input"] == ""
@@ -32,6 +33,7 @@ def test_agent_state_accumulates_memories() -> None:
         "memories": [{"content": "memory1"}],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     state2: AgentState = {
@@ -41,6 +43,7 @@ def test_agent_state_accumulates_memories() -> None:
         "memories": [{"content": "memory2"}],
         "response": "response",
         "error": None,
+        "messages": [],
     }
 
     # When merging states, memories should accumulate

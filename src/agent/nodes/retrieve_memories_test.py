@@ -16,6 +16,7 @@ async def test_retrieve_memories_node_searches_database() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     with patch("src.agent.nodes.retrieve_memories.db_search_memories") as mock_search:
@@ -42,6 +43,7 @@ async def test_retrieve_memories_node_handles_no_results() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     with patch("src.agent.nodes.retrieve_memories.db_search_memories") as mock_search:
@@ -63,6 +65,7 @@ async def test_retrieve_memories_node_handles_error() -> None:
         "memories": [],
         "response": "",
         "error": None,
+        "messages": [],
     }
 
     with patch("src.agent.nodes.retrieve_memories.db_search_memories") as mock_search:
