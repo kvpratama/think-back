@@ -10,6 +10,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import RetryPolicy
 
 from src.agent.nodes.generate_answer import generate_answer
 from src.agent.nodes.intent_router import intent_router
@@ -48,7 +49,7 @@ def build_graph(
 
     # Add all nodes
     graph.add_node("intent_router", intent_router)
-    graph.add_node("save_memory", save_memory)
+    graph.add_node("save_memory", save_memory, retry_policy=RetryPolicy(max_attempts=3))
     graph.add_node("retrieve_memories", retrieve_memories)
     graph.add_node("generate_answer", generate_answer)
 

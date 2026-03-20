@@ -84,3 +84,36 @@ async def test_graph_query_flow() -> None:
 
                 assert result["intent"] == "query"
                 assert "From your saved memories" in result["response"]
+
+
+async def test_graph_save_retry_behavior() -> None:
+    """Test that the graph retries the save_memory node on failure."""
+    from unittest.mock import patch
+
+    from src.agent.graph import build_graph
+
+    graph = build_graph()
+
+    initial_state: AgentState = {
+        "user_input": "/save Consistency beats intensity",
+        "cleaned_input": "",
+        "intent": None,
+        "memories": [],
+        "response": "",
+        "error": None,
+        "messages": [],
+    }
+
+    with patch("src.agent.nodes.save_memory.db_save_memory") as mock_save:
+        # Fail twice, then succeed
+        mock_save.side_effect = [
+            Exception("Transient error 1"),
+            Exception("Transient error 2"),
+            {"id": "test-id", "content": "Consistency beats intensity"},
+        ]
+
+        result = await graph.ainvoke(initial_state, config={"configurable": {"thread_id": "test"}})
+
+        assert result["intent"] == "save"
+        assert result["response"] == "Memory saved."
+        assert mock_save.call_count == 3

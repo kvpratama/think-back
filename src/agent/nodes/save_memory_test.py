@@ -48,7 +48,7 @@ async def test_save_memory_node_handles_error() -> None:
     with patch("src.agent.nodes.save_memory.db_save_memory") as mock_save:
         mock_save.side_effect = Exception("Database error")
 
-        result = await save_memory(state)
+        import pytest
 
-        assert result["error"] is not None
-        assert "Failed to save memory" in result["error"]
+        with pytest.raises(Exception, match="Database error"):
+            await save_memory(state)

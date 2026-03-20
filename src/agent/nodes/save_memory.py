@@ -5,10 +5,13 @@ This node handles saving user-provided knowledge to the vector database.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.agent.state import AgentState
 from src.db.vector_store import save_memory as db_save_memory
+
+logger = logging.getLogger(__name__)
 
 
 async def save_memory(state: AgentState) -> dict[str, Any]:
@@ -42,7 +45,5 @@ async def save_memory(state: AgentState) -> dict[str, Any]:
             "memories": [result],
         }
     except Exception as e:
-        return {
-            "error": f"Failed to save memory: {e!s}",
-            "response": "Failed to save memory. Please try again.",
-        }
+        logger.exception("Failed to save memory: %s", e)
+        raise e
