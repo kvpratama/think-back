@@ -11,6 +11,7 @@ from typing import Any
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.agent.state import AgentState
 
@@ -37,21 +38,13 @@ def _get_llm() -> BaseChatModel:
     )
 
 
-# RAG prompt template for answering questions using memories
-RAG_PROMPT = """You are a personal knowledge assistant.
-
-Answer questions ONLY using the memories provided below.
-
-If the memories do not contain the answer, say that the knowledge has not been saved yet.
-
-User Question:
-{question}
-
-Memories:
-{memories}
-
-Answer using only these memories. If there are no memories, \
-say you don't have any saved knowledge about this topic yet."""
+SYSTEM_MESSAGE = (
+    "You are a personal knowledge assistant.\n\n"
+    "Answer questions ONLY using the memories provided by the user.\n\n"
+    "If the memories do not contain the answer, say that the knowledge has not been saved yet.\n\n"
+    "If there are no memories, "
+    "say you don't have any saved knowledge about this topic yet."
+)
 
 
 async def generate_answer(state: AgentState) -> dict[str, Any]:
@@ -69,45 +62,49 @@ async def generate_answer(state: AgentState) -> dict[str, Any]:
         ...     "cleaned_input": "What do I know about habits?",
         ...     "intent": "query",
         ...     "memories": [{"content": "Consistency beats intensity"}],
+        ...     "messages": [],
         ...     "response": "",
         ...     "error": None,
         ... }
         >>> result = await generate_answer(state)
-        >>> "From your saved memories" in result["response"]
+        >>> "response" in result and "messages" in result
         True
     """
-    # Handle case with no memories
-    if not state["memories"]:
-        return {
-            "response": (
-                "I don't have any saved memories about this topic yet. Use /save to add knowledge."
-            ),
-        }
 
     try:
+        # Clean user message saved to state history
+        user_msg = HumanMessage(content=state["cleaned_input"])
+
         # Format memories for the prompt
         memories_text = "\n".join([f"• {m['content']}" for m in state["memories"]])
 
         # Get cached LLM instance
         llm = _get_llm()
 
-        prompt = RAG_PROMPT.format(
-            question=state["user_input"],
-            memories=memories_text,
+        # Temporary context message for LLM only (not persisted)
+        context_msg = HumanMessage(
+            content=f"Memories:\n{memories_text}\n\nQuestion:\n{state['cleaned_input']}"
         )
 
-        response = await llm.ainvoke(prompt)
+        # Always prepend system message dynamically
+        messages_for_llm = (
+            [SystemMessage(content=SYSTEM_MESSAGE)] + state.get("messages", []) + [context_msg]
+        )
 
-        # Extract text content from the response
+        response = await llm.ainvoke(messages_for_llm)
+
         response_text = (
             response.content if isinstance(response.content, str) else str(response.content)
         )
 
         return {
+            "messages": [user_msg, AIMessage(content=response_text)],
             "response": response_text,
         }
     except Exception as e:
+        error_response = "Sorry, I encountered an error while generating a response."
         return {
+            "messages": [user_msg, AIMessage(content=error_response)],
             "error": f"Failed to generate answer: {e!s}",
-            "response": "Sorry, I encountered an error while generating a response.",
+            "response": error_response,
         }

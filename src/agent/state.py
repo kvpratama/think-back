@@ -7,7 +7,7 @@ for list fields that accumulate across steps.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 from langgraph.graph import MessagesState
 
@@ -32,24 +32,6 @@ class Memory(TypedDict):
     test_score_avg: NotRequired[float]
 
 
-def add_memories(
-    left: list[Memory],
-    right: list[Memory],
-) -> list[Memory]:
-    """Add two lists of memories together.
-
-    Used as a reducer for the memories field in AgentState.
-
-    Args:
-        left: The left list of memories.
-        right: The right list of memories.
-
-    Returns:
-        The concatenated list of memories.
-    """
-    return left + right
-
-
 class AgentState(MessagesState):
     """State of the ThinkBack agent.
 
@@ -61,7 +43,7 @@ class AgentState(MessagesState):
         user_input: The raw user input from Telegram (including command prefix).
         cleaned_input: The user input with command prefix stripped.
         intent: The detected intent ('save', 'query', or None).
-        memories: List of retrieved or saved memory records. Accumulates across steps.
+        memories: List of retrieved or saved memory records. Overwritten per query.
         response: The final response to send to the user.
         error: Any error message that occurred during processing.
     """
@@ -69,6 +51,6 @@ class AgentState(MessagesState):
     user_input: str
     cleaned_input: str
     intent: Literal["save", "query"] | None
-    memories: Annotated[list[Memory], add_memories]
+    memories: list[Memory]
     response: str
     error: str | None
