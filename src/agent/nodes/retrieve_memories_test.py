@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from src.agent.state import AgentState
 
 
@@ -71,7 +73,5 @@ async def test_retrieve_memories_node_handles_error() -> None:
     with patch("src.agent.nodes.retrieve_memories.db_search_memories") as mock_search:
         mock_search.side_effect = Exception("Database error")
 
-        result = await retrieve_memories(state)
-
-        assert result["error"] is not None
-        assert "Failed to retrieve memories" in result["error"]
+        with pytest.raises(Exception, match="Database error"):
+            await retrieve_memories(state)

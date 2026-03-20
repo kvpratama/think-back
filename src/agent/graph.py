@@ -50,7 +50,7 @@ def build_graph(
     # Add all nodes
     graph.add_node("intent_router", intent_router)
     graph.add_node("save_memory", save_memory, retry_policy=RetryPolicy(max_attempts=3))
-    graph.add_node("retrieve_memories", retrieve_memories)
+    graph.add_node("retrieve_memories", retrieve_memories, retry_policy=RetryPolicy(max_attempts=3))
     graph.add_node("generate_answer", generate_answer)
 
     # Set entry point

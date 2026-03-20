@@ -5,10 +5,13 @@ This node handles searching for relevant memories using vector similarity.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.agent.state import AgentState
 from src.db.vector_store import search_memories as db_search_memories
+
+logger = logging.getLogger(__name__)
 
 
 async def retrieve_memories(state: AgentState) -> dict[str, Any]:
@@ -41,7 +44,5 @@ async def retrieve_memories(state: AgentState) -> dict[str, Any]:
             "memories": memories,
         }
     except Exception as e:
-        return {
-            "error": f"Failed to retrieve memories: {e!s}",
-            "memories": [],
-        }
+        logger.exception("Failed to retrieve memories: %s", e)
+        raise e

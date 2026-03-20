@@ -134,11 +134,7 @@ async def search_memories(
     vector_store = _get_vector_store()
 
     # Use async variant for similarity search
-    try:
-        docs_with_scores = vector_store.similarity_search_with_relevance_scores(query, k=top_k)
-    except Exception as e:
-        logger.exception("Error searching memories: %s", e)
-        return []
+    docs_with_scores = vector_store.similarity_search_with_relevance_scores(query, k=top_k)
 
     # Convert to the expected format
     results: list[Memory] = []

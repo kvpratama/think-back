@@ -47,14 +47,11 @@ async def intent_router(
     user_input_lower = user_input.lower()
 
     if user_input_lower.startswith("/save"):
-        cleaned = user_input[len("/save") :].strip()
+        cleaned = user_input.removeprefix(user_input[: len("/save")]).strip()
         return Command(update={"intent": "save", "cleaned_input": cleaned}, goto="save_memory")
-    elif user_input_lower.startswith("/ask") or user_input_lower.startswith("/query"):
-        cleaned = (
-            user_input[len("/ask") :].strip()
-            if user_input_lower.startswith("/ask")
-            else user_input[len("/query") :].strip()
-        )
+    elif user_input_lower.startswith(("/ask", "/query")):
+        prefix_len = len("/ask") if user_input_lower.startswith("/ask") else len("/query")
+        cleaned = user_input[prefix_len:].strip()
         return Command(
             update={"intent": "query", "cleaned_input": cleaned}, goto="retrieve_memories"
         )

@@ -1,8 +1,9 @@
 """Agent state definition for LangGraph.
 
 The AgentState is a TypedDict that represents the state of the agent
-throughout the graph execution. It uses Annotated fields with operator.add
-for list fields that accumulate across steps.
+throughout the graph execution. It inherits from MessagesState which
+uses a reducer for the messages list. Other list fields like memories
+are overwritten per query.
 """
 
 from __future__ import annotations
