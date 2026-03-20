@@ -42,7 +42,7 @@ async def test_graph_save_flow() -> None:
 
 async def test_graph_query_flow() -> None:
     """Test the query knowledge flow through the graph."""
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     from src.agent.graph import build_graph
 
@@ -69,11 +69,16 @@ async def test_graph_query_flow() -> None:
                 mock_settings.return_value = mock_settings_instance
 
                 mock_search.return_value = [
-                    {"content": "Consistency beats intensity", "summary": "habits"}
+                    {
+                        "content": "Consistency beats intensity",
+                        "summary": "habits",
+                        "id": "test-id-1",
+                    }
                 ]
 
                 mock_model = MagicMock()
-                mock_model.invoke.return_value.content = (
+                mock_model.ainvoke = AsyncMock()
+                mock_model.ainvoke.return_value.content = (
                     "From your saved memories:\n\n• Consistency beats intensity."
                 )
                 mock_init_model.return_value = mock_model

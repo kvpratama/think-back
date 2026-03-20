@@ -10,6 +10,7 @@ from functools import lru_cache
 from typing import Any
 
 from langchain.chat_models import init_chat_model
+from langchain_core.language_models.chat_models import BaseChatModel
 
 from src.agent.state import AgentState
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache
-def _get_llm() -> Any:
+def _get_llm() -> BaseChatModel:
     """Create and return the LLM instance (cached singleton).
 
     Returns:
@@ -32,7 +33,7 @@ def _get_llm() -> Any:
         api_key=settings.openai_api_key,
         base_url=settings.llm_provider_base_url,
         temperature=0,
-        streaming=False,
+        streaming=True,
     )
 
 
@@ -95,7 +96,7 @@ async def generate_answer(state: AgentState) -> dict[str, Any]:
             memories=memories_text,
         )
 
-        response = llm.invoke(prompt)
+        response = await llm.ainvoke(prompt)
 
         # Extract text content from the response
         response_text = (

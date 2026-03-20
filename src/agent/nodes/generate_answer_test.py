@@ -1,6 +1,6 @@
 """Tests for the generate_answer node."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.agent.state import AgentState
 
@@ -31,7 +31,8 @@ async def test_generate_answer_node_creates_response() -> None:
             mock_settings.return_value = mock_settings_instance
 
             mock_model = MagicMock()
-            mock_model.invoke.return_value.content = (
+            mock_model.ainvoke = AsyncMock()
+            mock_model.ainvoke.return_value.content = (
                 "From your saved memories:\n\n• Consistency beats intensity."
             )
             mock_init_model.return_value = mock_model
@@ -88,7 +89,7 @@ async def test_generate_answer_node_handles_error() -> None:
             mock_settings.return_value = mock_settings_instance
 
             mock_model = MagicMock()
-            mock_model.invoke.side_effect = Exception("API error")
+            mock_model.ainvoke = AsyncMock(side_effect=Exception("API error"))
             mock_init_model.return_value = mock_model
 
             # Clear cache to ensure fresh instances

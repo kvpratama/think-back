@@ -2,6 +2,8 @@
 
 # mypy: disable-error-code="union-attr"
 
+from collections.abc import AsyncGenerator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,22 +44,22 @@ async def test_handle_message_save_command(
     """Test that handle_message processes save command."""
     from src.api.bot import handle_message
 
-    mock_graph = MagicMock()
-    mock_graph.ainvoke = AsyncMock(
-        return_value={
-            "user_input": "/save test memory",
-            "cleaned_input": "test memory",
-            "intent": "save",
-            "memories": [],
-            "response": "Memory saved.",
-            "error": None,
+    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+        yield {
+            "event": "on_chain_end",
+            "name": "LangGraph",
+            "data": {"output": {"response": "Memory saved."}},
         }
-    )
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = mock_astream
 
     with patch("src.api.bot._get_graph", return_value=mock_graph):
         await handle_message(mock_update, mock_context)
 
-        mock_update.effective_message.reply_text.assert_called_once()
+        # Should call reply_text for "Thinking..." and then edit_message_text for the result
+        assert mock_update.effective_message.reply_text.call_count == 1
+        mock_context.bot.edit_message_text.assert_called()
 
 
 async def test_handle_message_ask_command(
@@ -70,22 +72,29 @@ async def test_handle_message_ask_command(
     mock_update.effective_message.text = "/ask What do I know about habits?"
     mock_update.message.text = "/ask What do I know about habits?"
 
-    mock_graph = MagicMock()
-    mock_graph.ainvoke = AsyncMock(
-        return_value={
-            "user_input": "/ask What do I know about habits?",
-            "cleaned_input": "What do I know about habits?",
-            "intent": "query",
-            "memories": [{"content": "test memory"}],
-            "response": "From your saved memories: test memory",
-            "error": None,
+    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+        yield {
+            "event": "on_chat_model_stream",
+            "data": {"chunk": MagicMock(content="test ")},
         }
-    )
+        yield {
+            "event": "on_chat_model_stream",
+            "data": {"chunk": MagicMock(content="memory")},
+        }
+        yield {
+            "event": "on_chain_end",
+            "name": "LangGraph",
+            "data": {"output": {"response": "From your saved memories: test memory"}},
+        }
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = mock_astream
 
     with patch("src.api.bot._get_graph", return_value=mock_graph):
         await handle_message(mock_update, mock_context)
 
-        mock_update.effective_message.reply_text.assert_called_once()
+        assert mock_update.effective_message.reply_text.call_count == 1
+        mock_context.bot.edit_message_text.assert_called()
 
 
 async def test_handle_message_unknown_command(

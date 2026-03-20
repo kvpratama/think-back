@@ -10,8 +10,11 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
 
+import time
+
 from langgraph.checkpoint.memory import InMemorySaver
 from telegram import Update
+from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -73,8 +76,17 @@ async def handle_message(
 
     graph = _get_graph()
 
-    # Invoke the agent graph
-    result = await graph.ainvoke(
+    # Initial thinking message
+    sent_message = await update.message.reply_text("Thinking... 🧠")  # type: ignore[union-attr]
+
+    accumulated_response = ""
+    final_response = ""
+    last_update_time = time.monotonic()
+    update_interval = 1.0  # seconds – respects Telegram's rate limits
+    telegram_char_limit = 4000  # leave headroom below the 4096 hard limit
+
+    # Use astream_events to capture streaming tokens
+    async for event in graph.astream_events(
         {
             "user_input": user_input,
             "cleaned_input": "",
@@ -88,11 +100,50 @@ async def handle_message(
                 "thread_id": str(chat.id),
             }
         },
-    )
+        version="v2",
+    ):
+        # Listen for tokens from the chat model
+        if event["event"] == "on_chat_model_stream":
+            content = event["data"]["chunk"].content
+            if content:
+                accumulated_response += content if isinstance(content, str) else str(content)
 
-    # Send the response
-    response = result.get("response", "Sorry, I encountered an error.")
-    await update.message.reply_text(response)  # type: ignore[union-attr]
+                # Periodic update to Telegram to avoid rate limits
+                current_time = time.monotonic()
+                if (
+                    current_time - last_update_time > update_interval
+                    and accumulated_response.strip()
+                ):
+                    display_text = accumulated_response[:telegram_char_limit] + " ▌"
+                    try:
+                        await context.bot.edit_message_text(
+                            chat_id=chat.id,
+                            message_id=sent_message.message_id,
+                            text=display_text,
+                        )
+                        last_update_time = current_time
+                    except BadRequest:
+                        pass  # "Message is not modified" or similar
+                    except TelegramError:
+                        pass  # transient network / rate-limit hiccup
+
+        # Capture the final result from the graph
+        elif event["event"] == "on_chain_end" and event["name"] == "LangGraph":
+            final_result = event["data"]["output"]
+            final_response = final_result.get("response") or "No response generated."
+
+    # Send the final response after the stream ends (handles missing on_chain_end too)
+    final_response = final_response or accumulated_response or "No response generated."
+    try:
+        await context.bot.edit_message_text(
+            chat_id=chat.id,
+            message_id=sent_message.message_id,
+            text=final_response[:telegram_char_limit],
+        )
+    except TelegramError:
+        await update.message.reply_text(  # type: ignore[union-attr]
+            final_response[:telegram_char_limit],
+        )
 
 
 def create_application() -> Application:  # type: ignore[type-arg]
