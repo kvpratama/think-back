@@ -7,7 +7,7 @@ from src.agent.state import AgentState
 
 async def test_generate_answer_node_creates_response() -> None:
     """Test that generate_answer node creates a response from memories."""
-    from src.agent.nodes.generate_answer import generate_answer
+    from src.agent.nodes.generate_answer import _get_llm, generate_answer
 
     state: AgentState = {
         "user_input": "/ask What do I know about habits?",
@@ -36,6 +36,9 @@ async def test_generate_answer_node_creates_response() -> None:
             )
             mock_init_model.return_value = mock_model
 
+            # Clear cache to ensure fresh instances
+            _get_llm.cache_clear()
+
             result = await generate_answer(state)
 
             assert "From your saved memories" in result["response"]
@@ -63,7 +66,7 @@ async def test_generate_answer_node_handles_no_memories() -> None:
 
 async def test_generate_answer_node_handles_error() -> None:
     """Test that generate_answer node handles LLM errors gracefully."""
-    from src.agent.nodes.generate_answer import generate_answer
+    from src.agent.nodes.generate_answer import _get_llm, generate_answer
 
     state: AgentState = {
         "user_input": "/ask What do I know about habits?",
@@ -87,6 +90,9 @@ async def test_generate_answer_node_handles_error() -> None:
             mock_model = MagicMock()
             mock_model.invoke.side_effect = Exception("API error")
             mock_init_model.return_value = mock_model
+
+            # Clear cache to ensure fresh instances
+            _get_llm.cache_clear()
 
             result = await generate_answer(state)
 

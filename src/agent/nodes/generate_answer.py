@@ -5,11 +5,36 @@ This node handles generating responses using the LLM based on retrieved memories
 
 from __future__ import annotations
 
+import logging
+from functools import lru_cache
 from typing import Any
 
 from langchain.chat_models import init_chat_model
 
 from src.agent.state import AgentState
+
+logger = logging.getLogger(__name__)
+
+
+@lru_cache
+def _get_llm() -> Any:
+    """Create and return the LLM instance (cached singleton).
+
+    Returns:
+        The configured LLM instance.
+    """
+    from src.core.config import Settings
+
+    settings = Settings()
+    return init_chat_model(
+        model=settings.llm_model,
+        model_provider=settings.llm_provider,
+        api_key=settings.openai_api_key,
+        base_url=settings.llm_provider_base_url,
+        temperature=0,
+        streaming=False,
+    )
+
 
 # RAG prompt template for answering questions using memories
 RAG_PROMPT = """You are a personal knowledge assistant.
@@ -62,18 +87,8 @@ async def generate_answer(state: AgentState) -> dict[str, Any]:
         # Format memories for the prompt
         memories_text = "\n".join([f"• {m['content']}" for m in state["memories"]])
 
-        # Create and invoke the LLM
-        from src.core.config import Settings
-
-        settings = Settings()
-        llm = init_chat_model(
-            model=settings.llm_model,
-            model_provider=settings.llm_provider,
-            api_key=settings.openai_api_key,
-            base_url=settings.llm_provider_base_url,
-            temperature=0,
-            streaming=False,
-        )
+        # Get cached LLM instance
+        llm = _get_llm()
 
         prompt = RAG_PROMPT.format(
             question=state["user_input"],
