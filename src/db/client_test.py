@@ -7,13 +7,12 @@ def test_get_supabase_client_returns_client() -> None:
     """Test that get_supabase_client returns a Supabase client instance."""
     from src.db.client import get_supabase_client
 
-    with patch("src.db.client.create_client") as mock_create:
-        with patch("src.core.config.Settings") as mock_settings:
-            mock_settings_instance = MagicMock()
-            mock_settings_instance.supabase_url = "https://test.supabase.co"
-            mock_settings_instance.supabase_key = "test-key"
-            mock_settings.return_value = mock_settings_instance
+    mock_settings = MagicMock()
+    mock_settings.supabase_url = "https://test.supabase.co"
+    mock_settings.supabase_key = "test-key"
 
+    with patch("src.db.client.create_client") as mock_create:
+        with patch("src.core.config.get_settings", return_value=mock_settings):
             mock_client = MagicMock()
             mock_create.return_value = mock_client
 
@@ -30,13 +29,12 @@ def test_get_supabase_client_is_singleton() -> None:
     """Test that get_supabase_client returns the same client instance."""
     from src.db.client import get_supabase_client
 
-    with patch("src.db.client.create_client") as mock_create:
-        with patch("src.core.config.Settings") as mock_settings:
-            mock_settings_instance = MagicMock()
-            mock_settings_instance.supabase_url = "https://test.supabase.co"
-            mock_settings_instance.supabase_key = "test-key"
-            mock_settings.return_value = mock_settings_instance
+    mock_settings = MagicMock()
+    mock_settings.supabase_url = "https://test.supabase.co"
+    mock_settings.supabase_key = "test-key"
 
+    with patch("src.db.client.create_client") as mock_create:
+        with patch("src.core.config.get_settings", return_value=mock_settings):
             mock_client = MagicMock()
             mock_create.return_value = mock_client
 

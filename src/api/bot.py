@@ -23,7 +23,7 @@ from telegram.ext import (
     filters,
 )
 
-from src.core.config import Settings
+from src.core.config import get_settings
 
 _graph: CompiledStateGraph[Any, Any] | None = None
 # Initialize the saver outside the getter so it survives graph recompilation
@@ -156,7 +156,7 @@ def create_application() -> Application:  # type: ignore[type-arg]
         >>> app = create_application()
         >>> app.run_polling()
     """
-    settings = Settings()
+    settings = get_settings()
 
     # Create the application
     application = Application.builder().token(settings.telegram_bot_token).build()

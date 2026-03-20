@@ -23,7 +23,7 @@ def get_supabase_client() -> Client:
         >>> client = get_supabase_client()
         >>> client.table("memories").select("*").execute()
     """
-    from src.core.config import Settings
+    from src.core.config import get_settings
 
-    settings = Settings()
+    settings = get_settings()
     return create_client(settings.supabase_url, settings.supabase_key)

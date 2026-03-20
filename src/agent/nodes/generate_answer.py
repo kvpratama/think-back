@@ -24,9 +24,9 @@ def _get_llm() -> BaseChatModel:
     Returns:
         The configured LLM instance.
     """
-    from src.core.config import Settings
+    from src.core.config import get_settings
 
-    settings = Settings()
+    settings = get_settings()
     return init_chat_model(
         model=settings.llm_model,
         model_provider=settings.llm_provider,

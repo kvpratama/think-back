@@ -27,7 +27,7 @@ def test_get_embedding_generates_embedding(
     from src.db.vector_store import _get_embeddings, get_embedding
 
     with patch("src.db.vector_store.GoogleGenerativeAIEmbeddings") as mock_embeddings:
-        with patch("src.core.config.Settings", return_value=mock_settings):
+        with patch("src.core.config.get_settings", return_value=mock_settings):
             mock_embedder = MagicMock()
             mock_embedder.aembed_query = AsyncMock(return_value=[0.1] * 768)
             mock_embeddings.return_value = mock_embedder
@@ -73,7 +73,7 @@ async def test_save_memory_inserts_into_database(
 
     with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
         with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
-            with patch("src.core.config.Settings", return_value=mock_settings):
+            with patch("src.core.config.get_settings", return_value=mock_settings):
                 # Clear cache to ensure fresh instances
                 _get_embeddings.cache_clear()
                 _get_vector_store.cache_clear()
@@ -110,7 +110,7 @@ async def test_save_memory_uses_content_directly(
 
     with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
         with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
-            with patch("src.core.config.Settings", return_value=mock_settings):
+            with patch("src.core.config.get_settings", return_value=mock_settings):
                 _get_embeddings.cache_clear()
                 _get_vector_store.cache_clear()
 
@@ -138,7 +138,7 @@ async def test_search_memories_performs_vector_search(
 
     with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
         with patch("src.db.vector_store.get_supabase_client"):
-            with patch("src.core.config.Settings", return_value=mock_settings):
+            with patch("src.core.config.get_settings", return_value=mock_settings):
                 _get_embeddings.cache_clear()
                 _get_vector_store.cache_clear()
 
@@ -167,7 +167,7 @@ async def test_search_memories_uses_query_directly(
 
     with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
         with patch("src.db.vector_store.get_supabase_client"):
-            with patch("src.core.config.Settings", return_value=mock_settings):
+            with patch("src.core.config.get_settings", return_value=mock_settings):
                 _get_embeddings.cache_clear()
                 _get_vector_store.cache_clear()
 

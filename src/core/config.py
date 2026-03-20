@@ -1,5 +1,7 @@
 """Application configuration using Pydantic Settings."""
 
+from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,3 +42,13 @@ class Settings(BaseSettings):
     llm_provider_base_url: str = "https://api.openai.com/v1"
     embedding_model: str = "gemini-embedding-001"
     vector_dimensions: int = 768
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return a cached Settings singleton.
+
+    Returns:
+        The shared Settings instance.
+    """
+    return Settings()
