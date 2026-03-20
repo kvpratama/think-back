@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import cast
 
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_core.documents import Document
@@ -103,16 +102,13 @@ async def save_memory(content: str, summary: str | None = None) -> Memory:
     # Use aadd_documents to insert with embeddings generated automatically
     ids = await vector_store.aadd_documents([document])
 
-    # Fetch the inserted record to return it
-    client = get_supabase_client()
-    response = client.table("memories").select("*").eq("id", ids[0]).execute()
-
-    return cast(Memory, response.data[0])
+    return {"id": ids[0], "content": content}
 
 
 async def search_memories(
     query: str,
     top_k: int = 3,
+    threshold: float = 0.6,
 ) -> list[Memory]:
     """Search for memories similar to the query using vector similarity.
 
@@ -122,6 +118,7 @@ async def search_memories(
     Args:
         query: The search query text (already cleaned of command prefixes).
         top_k: Number of results to return. Defaults to 3.
+        threshold: Minimum similarity score to consider a match. Defaults to 0.6.
 
     Returns:
         A list of matching memory records with their content and metadata.
@@ -133,17 +130,18 @@ async def search_memories(
     """
     vector_store = _get_vector_store()
 
-    # Use async variant for similarity search
+    # Perform similarity search
     docs_with_scores = vector_store.similarity_search_with_relevance_scores(query, k=top_k)
 
     # Convert to the expected format
     results: list[Memory] = []
     for doc, score in docs_with_scores:
-        result: Memory = {
-            "content": doc.page_content,
-            "id": doc.metadata.get("id"),
-            "similarity": score,
-        }
-        results.append(result)
+        if score >= threshold:
+            result: Memory = {
+                "content": doc.page_content,
+                "id": doc.metadata.get("id"),
+                "similarity": score,
+            }
+            results.append(result)
     logger.debug("Search results: %s", results)
     return results

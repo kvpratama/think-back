@@ -59,18 +59,6 @@ async def test_save_memory_inserts_into_database(
     memory_id = str(uuid4())
     mock_vector_store.aadd_documents = AsyncMock(return_value=[memory_id])
 
-    mock_select_response = MagicMock()
-    mock_select_response.data = [{"id": memory_id, "content": "test content"}]
-    mock_select = MagicMock()
-    mock_select.execute.return_value = mock_select_response
-    mock_eq = MagicMock()
-    mock_eq.execute = mock_select
-    mock_select_method = MagicMock(return_value=mock_eq)
-    mock_table = MagicMock()
-    mock_table.select.return_value = mock_select_method
-    mock_table.eq = mock_select_method
-    mock_client.table.return_value = mock_table
-
     with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
         with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
             with patch("src.core.config.get_settings", return_value=mock_settings):
@@ -81,7 +69,6 @@ async def test_save_memory_inserts_into_database(
                 result = await save_memory("test content")
 
                 mock_vector_store.aadd_documents.assert_called_once()
-                mock_client.table.assert_called_with("memories")
                 assert result is not None
 
 
@@ -95,18 +82,6 @@ async def test_save_memory_uses_content_directly(
     mock_vector_store = MagicMock()
     memory_id = str(uuid4())
     mock_vector_store.aadd_documents = AsyncMock(return_value=[memory_id])
-
-    mock_select_response = MagicMock()
-    mock_select_response.data = [{"id": memory_id, "content": "Remember this"}]
-    mock_select = MagicMock()
-    mock_select.execute.return_value = mock_select_response
-    mock_eq = MagicMock()
-    mock_eq.execute = mock_select
-    mock_select_method = MagicMock(return_value=mock_eq)
-    mock_table = MagicMock()
-    mock_table.select.return_value = mock_select_method
-    mock_table.eq = mock_select_method
-    mock_client.table.return_value = mock_table
 
     with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
         with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):

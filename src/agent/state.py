@@ -23,7 +23,6 @@ class Memory(TypedDict):
 
     id: str | Any  # Can be UUID from DB or string from search metadata
     content: str
-    summary: NotRequired[str | None]
     similarity: NotRequired[float]
     metadata: NotRequired[dict[str, Any]]
     source: NotRequired[str | None]

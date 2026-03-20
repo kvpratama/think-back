@@ -14,7 +14,7 @@ async def test_generate_answer_node_creates_response() -> None:
         "cleaned_input": "What do I know about habits?",
         "intent": "query",
         "memories": [
-            {"content": "Consistency beats intensity", "summary": "habits", "id": "test-id-1"},
+            {"content": "Consistency beats intensity", "id": "test-id-1"},
         ],
         "response": "",
         "error": None,

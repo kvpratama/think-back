@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from langchain_core.messages import AIMessage, HumanMessage
+
 from src.agent.state import AgentState
 from src.db.vector_store import save_memory as db_save_memory
 
@@ -41,6 +43,10 @@ async def save_memory(state: AgentState) -> dict[str, Any]:
     try:
         result = await db_save_memory(state["cleaned_input"])
         return {
+            "messages": [
+                HumanMessage(content=state["cleaned_input"]),
+                AIMessage(content="Memory saved."),
+            ],
             "response": "Memory saved.",
             "memories": [result],
         }

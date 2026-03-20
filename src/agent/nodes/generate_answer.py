@@ -71,10 +71,10 @@ async def generate_answer(state: AgentState) -> dict[str, Any]:
         True
     """
 
-    try:
-        # Clean user message saved to state history
-        user_msg = HumanMessage(content=state["cleaned_input"])
+    # Clean user message saved to state history (before try so it's always available)
+    user_msg = HumanMessage(content=state.get("cleaned_input", ""))
 
+    try:
         # Format memories for the prompt
         memories_text = "\n".join([f"• {m['content']}" for m in state["memories"]])
 
