@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import Any
+from typing import cast
 
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from pydantic import SecretStr
 
+from src.agent.state import Memory
 from src.db.client import get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ async def get_embedding(text: str) -> list[float]:
     return await embeddings.aembed_query(text)
 
 
-async def save_memory(content: str, summary: str | None = None) -> dict[str, Any]:
+async def save_memory(content: str, summary: str | None = None) -> Memory:
     """Save a memory with its embedding to the database.
 
     Args:
@@ -106,13 +107,13 @@ async def save_memory(content: str, summary: str | None = None) -> dict[str, Any
     client = get_supabase_client()
     response = client.table("memories").select("*").eq("id", ids[0]).execute()
 
-    return response.data[0]  # type: ignore[no-any-return]
+    return cast(Memory, response.data[0])
 
 
 async def search_memories(
     query: str,
     top_k: int = 3,
-) -> list[dict[str, Any]]:
+) -> list[Memory]:
     """Search for memories similar to the query using vector similarity.
 
     Performs similarity search using the embedding of the query
@@ -140,9 +141,9 @@ async def search_memories(
         return []
 
     # Convert to the expected format
-    results = []
+    results: list[Memory] = []
     for doc, score in docs_with_scores:
-        result = {
+        result: Memory = {
             "content": doc.page_content,
             "id": doc.metadata.get("id"),
             "similarity": score,

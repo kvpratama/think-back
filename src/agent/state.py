@@ -7,15 +7,35 @@ for list fields that accumulate across steps.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, NotRequired, TypedDict
 
 from langgraph.graph import MessagesState
 
 
+class Memory(TypedDict):
+    """A memory record used within the agent state.
+
+    This type represents a memory either retrieved from the database
+    or just saved to it. It includes database fields and optionally
+    search similarity scores.
+    """
+
+    id: str | Any  # Can be UUID from DB or string from search metadata
+    content: str
+    summary: NotRequired[str | None]
+    similarity: NotRequired[float]
+    metadata: NotRequired[dict[str, Any]]
+    source: NotRequired[str | None]
+    created_at: NotRequired[str | Any]
+    last_reviewed_at: NotRequired[str | Any | None]
+    review_count: NotRequired[int]
+    test_score_avg: NotRequired[float]
+
+
 def add_memories(
-    left: list[dict[str, Any]],
-    right: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    left: list[Memory],
+    right: list[Memory],
+) -> list[Memory]:
     """Add two lists of memories together.
 
     Used as a reducer for the memories field in AgentState.
@@ -49,6 +69,6 @@ class AgentState(MessagesState):
     user_input: str
     cleaned_input: str
     intent: Literal["save", "query"] | None
-    memories: Annotated[list[dict[str, Any]], add_memories]
+    memories: Annotated[list[Memory], add_memories]
     response: str
     error: str | None

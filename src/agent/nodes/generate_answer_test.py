@@ -14,7 +14,7 @@ async def test_generate_answer_node_creates_response() -> None:
         "cleaned_input": "What do I know about habits?",
         "intent": "query",
         "memories": [
-            {"content": "Consistency beats intensity", "summary": "habits"},
+            {"content": "Consistency beats intensity", "summary": "habits", "id": "test-id-1"},
         ],
         "response": "",
         "error": None,
@@ -72,7 +72,7 @@ async def test_generate_answer_node_handles_error() -> None:
         "user_input": "/ask What do I know about habits?",
         "cleaned_input": "What do I know about habits?",
         "intent": "query",
-        "memories": [{"content": "test memory"}],
+        "memories": [{"content": "test memory", "id": "test-id-1"}],
         "response": "",
         "error": None,
         "messages": [],
