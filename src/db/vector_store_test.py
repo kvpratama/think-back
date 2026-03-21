@@ -18,34 +18,6 @@ def mock_settings() -> MagicMock:
     return settings
 
 
-def test_get_embedding_generates_embedding(
-    mock_settings: MagicMock,
-) -> None:
-    """Test that get_embedding generates an embedding for text."""
-    from src.db.vector_store import _get_embeddings, get_embedding
-
-    with patch("src.db.vector_store.GoogleGenerativeAIEmbeddings") as mock_embeddings:
-        with patch("src.core.config.get_settings", return_value=mock_settings):
-            mock_embedder = MagicMock()
-            mock_embedder.aembed_query = AsyncMock(return_value=[0.1] * 768)
-            mock_embeddings.return_value = mock_embedder
-
-            # Clear cache to ensure fresh instances
-            _get_embeddings.cache_clear()
-
-            import asyncio
-
-            result = asyncio.get_event_loop().run_until_complete(get_embedding("test text"))
-
-            assert result == [0.1] * 768
-            mock_embeddings.assert_called_once_with(
-                model="gemini-embedding-exp-03-16",
-                google_api_key=mock_settings.gemini_api_key,
-                output_dimensionality=768,
-            )
-            mock_embedder.aembed_query.assert_called_once_with("test text")
-
-
 async def test_save_memory_inserts_into_database(
     mock_settings: MagicMock,
 ) -> None:

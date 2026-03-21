@@ -57,27 +57,6 @@ def _get_vector_store() -> SupabaseVectorStore:
     )
 
 
-async def get_embedding(text: str) -> list[float]:
-    """Generate an embedding vector for the given text.
-
-    Uses Google Gemini Embeddings to generate a vector representation
-    of the input text.
-
-    Args:
-        text: The text to embed.
-
-    Returns:
-        A list of floats representing the embedding vector.
-
-    Example:
-        >>> embedding = await get_embedding("Hello, world!")
-        >>> len(embedding)
-        768
-    """
-    embeddings = _get_embeddings()
-    return await embeddings.aembed_query(text)
-
-
 async def save_memory(content: str, summary: str | None = None) -> Memory:
     """Save a memory with its embedding to the database.
 
