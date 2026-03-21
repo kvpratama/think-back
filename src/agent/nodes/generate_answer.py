@@ -81,14 +81,15 @@ async def generate_answer(state: AgentState) -> dict[str, Any]:
         # Get cached LLM instance
         llm = _get_llm()
 
-        # Temporary context message for LLM only (not persisted)
-        context_msg = HumanMessage(
-            content=f"Memories:\n{memories_text}\n\nQuestion:\n{state['cleaned_input']}"
-        )
+        # Context and query as separate messages for LLM only (not persisted)
+        context_msg = HumanMessage(content=f"<context>\n{memories_text}\n</context>")
+        query_msg = HumanMessage(content=state["cleaned_input"])
 
         # Always prepend system message dynamically
         messages_for_llm = (
-            [SystemMessage(content=SYSTEM_MESSAGE)] + state.get("messages", []) + [context_msg]
+            [SystemMessage(content=SYSTEM_MESSAGE)]
+            + state.get("messages", [])
+            + [context_msg, query_msg]
         )
 
         response = await llm.ainvoke(messages_for_llm)
