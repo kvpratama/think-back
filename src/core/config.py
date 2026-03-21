@@ -51,4 +51,4 @@ def get_settings() -> Settings:
     Returns:
         The shared Settings instance.
     """
-    return Settings()
+    return Settings()  # type: ignore[call-arg]

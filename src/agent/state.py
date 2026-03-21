@@ -6,8 +6,6 @@ uses a reducer for the messages list. Other list fields like memories
 are overwritten per query.
 """
 
-from __future__ import annotations
-
 from typing import Any, Literal, NotRequired, TypedDict
 
 from langgraph.graph import MessagesState

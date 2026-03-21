@@ -34,7 +34,7 @@ def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
     settings = get_settings()
     return GoogleGenerativeAIEmbeddings(
         model=settings.embedding_model,
-        api_key=SecretStr(settings.gemini_api_key),
+        google_api_key=SecretStr(settings.gemini_api_key),
         output_dimensionality=settings.vector_dimensions,
     )
 

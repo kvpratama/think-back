@@ -146,7 +146,7 @@ async def handle_message(
         )
 
 
-def create_application() -> Application:  # type: ignore[type-arg]
+def create_application() -> Application:
     """Create and configure the Telegram bot application.
 
     Returns:

@@ -3,7 +3,7 @@
 # mypy: disable-error-code="union-attr"
 
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -58,7 +58,8 @@ async def test_handle_message_save_command(
         await handle_message(mock_update, mock_context)
 
         # Should call reply_text for "Thinking..." and then edit_message_text for the result
-        assert mock_update.effective_message.reply_text.call_count == 1
+        assert mock_update.effective_message is not None
+        assert cast(Any, mock_update.effective_message.reply_text).call_count == 1
         mock_context.bot.edit_message_text.assert_called()
 
 
@@ -69,8 +70,10 @@ async def test_handle_message_ask_command(
     """Test that handle_message processes ask command."""
     from src.api.bot import handle_message
 
-    mock_update.effective_message.text = "/ask What do I know about habits?"
-    mock_update.message.text = "/ask What do I know about habits?"
+    assert mock_update.effective_message is not None
+    cast(Any, mock_update.effective_message).text = "/ask What do I know about habits?"
+    assert mock_update.message is not None
+    cast(Any, mock_update.message).text = "/ask What do I know about habits?"
 
     async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         yield {
@@ -93,7 +96,8 @@ async def test_handle_message_ask_command(
     with patch("src.api.bot._get_graph", return_value=mock_graph):
         await handle_message(mock_update, mock_context)
 
-        assert mock_update.effective_message.reply_text.call_count == 1
+        assert mock_update.effective_message is not None
+        assert cast(Any, mock_update.effective_message.reply_text).call_count == 1
         mock_context.bot.edit_message_text.assert_called()
 
 
@@ -104,8 +108,10 @@ async def test_handle_message_unknown_command(
     """Test that handle_message handles unknown commands."""
     from src.api.bot import handle_message
 
-    mock_update.effective_message.text = "/unknown command"
-    mock_update.message.text = "/unknown command"
+    assert mock_update.effective_message is not None
+    cast(Any, mock_update.effective_message).text = "/unknown command"
+    assert mock_update.message is not None
+    cast(Any, mock_update.message).text = "/unknown command"
 
     mock_graph = MagicMock()
     mock_graph.ainvoke = AsyncMock(
@@ -122,7 +128,8 @@ async def test_handle_message_unknown_command(
     with patch("src.api.bot._get_graph", return_value=mock_graph):
         await handle_message(mock_update, mock_context)
 
-        mock_update.effective_message.reply_text.assert_called_once()
+        assert mock_update.effective_message is not None
+        cast(Any, mock_update.effective_message.reply_text).assert_called_once()
 
 
 async def test_start_command(mock_update: Update, mock_context: MagicMock) -> None:
@@ -131,4 +138,5 @@ async def test_start_command(mock_update: Update, mock_context: MagicMock) -> No
 
     await start_command(mock_update, mock_context)
 
-    mock_update.effective_message.reply_text.assert_called_once()
+    assert mock_update.effective_message is not None
+    cast(Any, mock_update.effective_message.reply_text).assert_called_once()

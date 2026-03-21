@@ -45,7 +45,7 @@ def build_graph(
         ... })
     """
     # Create the graph with AgentState
-    graph = StateGraph(AgentState)
+    graph = StateGraph(AgentState)  # type: ignore[arg-type]
 
     # Add all nodes
     graph.add_node("intent_router", intent_router)

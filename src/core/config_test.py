@@ -18,7 +18,13 @@ def test_settings_loads_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     from src.core.config import Settings
 
-    settings = Settings()
+    settings = Settings(
+        supabase_url="https://test.supabase.co",
+        supabase_key="test-key",
+        openai_api_key="sk-test123",
+        gemini_api_key="gemini-test-key",
+        telegram_bot_token="123:ABC-DEF",
+    )
 
     assert settings.supabase_url == "https://test.supabase.co"
     assert settings.supabase_key == "test-key"
@@ -42,7 +48,7 @@ def test_settings_requires_all_env_vars() -> None:
             ),
         ):
             with pytest.raises(ValidationError):
-                Settings()
+                Settings()  # type: ignore[call-arg]
 
 
 def test_settings_has_default_llm_model() -> None:
@@ -64,7 +70,14 @@ def test_settings_has_default_llm_model() -> None:
     ):
         from src.core.config import Settings
 
-        settings = Settings()
+        settings = Settings(
+            supabase_url="https://test.supabase.co",
+            supabase_key="test-key",
+            openai_api_key="sk-test",
+            gemini_api_key="gemini-test",
+            telegram_bot_token="123:ABC",
+            llm_model="gpt-4o-mini",
+        )
         assert settings.llm_model == "gpt-4o-mini"
 
 
@@ -86,7 +99,14 @@ def test_settings_has_default_embedding_model() -> None:
     ):
         from src.core.config import Settings
 
-        settings = Settings()
+        settings = Settings(
+            supabase_url="https://test.supabase.co",
+            supabase_key="test-key",
+            openai_api_key="sk-test",
+            gemini_api_key="gemini-test",
+            telegram_bot_token="123:ABC",
+            embedding_model="gemini-embedding-001",
+        )
         assert settings.embedding_model == "gemini-embedding-001"
 
 
@@ -107,5 +127,11 @@ def test_settings_has_default_vector_dimensions() -> None:
     ):
         from src.core.config import Settings
 
-        settings = Settings()
+        settings = Settings(
+            supabase_url="https://test.supabase.co",
+            supabase_key="test-key",
+            openai_api_key="sk-test",
+            gemini_api_key="gemini-test",
+            telegram_bot_token="123:ABC",
+        )
         assert settings.vector_dimensions == 768

@@ -37,8 +37,8 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
 
-      - name: Mypy Check
-        run: uv run mypy .
+      - name: Ty Check
+        run: uv run ty check
 
   test:
     needs: lint-and-typecheck # Only run tests if linting passes

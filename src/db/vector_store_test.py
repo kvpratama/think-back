@@ -42,7 +42,7 @@ def test_get_embedding_generates_embedding(
             assert result == [0.1] * 768
             mock_embeddings.assert_called_once_with(
                 model="gemini-embedding-exp-03-16",
-                api_key=SecretStr("test-gemini-key"),
+                google_api_key=SecretStr("test-gemini-key"),
                 output_dimensionality=768,
             )
             mock_embedder.aembed_query.assert_called_once_with("test text")
