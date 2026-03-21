@@ -41,6 +41,9 @@ uv run pytest
 uv run ruff check .
 uv run ruff format .
 
+# Type checking
+uv run ty check
+
 # Add a dependency
 uv add <package>
 
@@ -81,6 +84,7 @@ uv add --dev <package>
 ## Testing
 
 - Test runner: `uv run pytest`
+- Always follow Red–Green–Refactor TDD
 - Use `pytest-asyncio` with `asyncio_mode = "auto"` in `pyproject.toml`.
 - **Tests are co-located with their target** — a test for `nodes/retriever.py` lives at `nodes/retriever_test.py`, not in a separate `tests/` directory.
 - Test files are named `<module>_test.py` and live in the same directory as the module they test.
