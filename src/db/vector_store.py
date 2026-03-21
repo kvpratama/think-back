@@ -8,6 +8,7 @@ This module handles all vector store operations including:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from functools import lru_cache
 
@@ -131,7 +132,13 @@ async def search_memories(
     vector_store = _get_vector_store()
 
     # Perform similarity search
-    docs_with_scores = vector_store.similarity_search_with_relevance_scores(query, k=top_k)
+    # Note: SupabaseVectorStore doesn't implement asimilarity_search_with_relevance_scores,
+    # so we wrap the synchronous version in asyncio.to_thread to avoid blocking the event loop.
+    docs_with_scores = await asyncio.to_thread(
+        vector_store.similarity_search_with_relevance_scores,
+        query,
+        k=top_k,
+    )
 
     # Convert to the expected format
     results: list[Memory] = []
