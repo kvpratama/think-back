@@ -21,7 +21,7 @@ from src.agent.state import AgentState
 
 def build_graph(
     checkpointer: BaseCheckpointSaver[Any] | None = None,
-) -> CompiledStateGraph[Any, Any]:
+) -> CompiledStateGraph:
     """Build and compile the ThinkBack agent graph.
 
     The graph follows this flow:

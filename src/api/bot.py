@@ -5,7 +5,7 @@ This module handles the Telegram bot commands and message routing.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -25,23 +25,24 @@ from telegram.ext import (
 
 from src.core.config import get_settings
 
-_graph: CompiledStateGraph[Any, Any] | None = None
-# Initialize the saver outside the getter so it survives graph recompilation
-_memory_saver = InMemorySaver()
 
+def _get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
+    """Lazily build and cache the agent graph in bot_data.
 
-def _get_graph() -> CompiledStateGraph[Any, Any]:
-    """Lazily build and cache the agent graph.
+    Args:
+        context: The Telegram context whose bot_data stores the graph.
 
     Returns:
         Compiled LangGraph instance.
     """
-    global _graph  # noqa: PLW0603
-    if _graph is None:
+    if "graph" not in context.bot_data:
         from src.agent.graph import build_graph
 
-        _graph = build_graph(checkpointer=_memory_saver)
-    return _graph
+        context.bot_data["saver"] = InMemorySaver()
+        context.bot_data["graph"] = build_graph(
+            checkpointer=context.bot_data["saver"],
+        )
+    return context.bot_data["graph"]
 
 
 async def start_command(
@@ -74,7 +75,7 @@ async def handle_message(
     user_input = update.message.text  # type: ignore[union-attr]
     chat = update.message.chat  # type: ignore[union-attr]
 
-    graph = _get_graph()
+    graph = _get_graph(context)
 
     # Initial thinking message
     sent_message = await update.message.reply_text("Thinking... 🧠")  # type: ignore[union-attr]
