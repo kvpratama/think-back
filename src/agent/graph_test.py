@@ -58,13 +58,17 @@ async def test_graph_query_flow() -> None:
         "messages": [],
     }
 
+    from src.agent.nodes.generate_answer import _get_llm
+
+    _get_llm.cache_clear()
+
     with patch("src.agent.nodes.retrieve_memories.db_search_memories") as mock_search:
         with patch("src.agent.nodes.generate_answer.init_chat_model") as mock_init_model:
             with patch("src.core.config.Settings") as mock_settings:
                 mock_settings_instance = MagicMock()
                 mock_settings_instance.llm_model = "gpt-4o-mini"
                 mock_settings_instance.llm_provider = "openai"
-                mock_settings_instance.openai_api_key = "test-key"
+                mock_settings_instance.openai_api_key.get_secret_value.return_value = "test-key"
                 mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1"
                 mock_settings.return_value = mock_settings_instance
 

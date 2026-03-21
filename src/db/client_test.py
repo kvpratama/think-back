@@ -8,8 +8,8 @@ def test_get_supabase_client_returns_client() -> None:
     from src.db.client import get_supabase_client
 
     mock_settings = MagicMock()
-    mock_settings.supabase_url = "https://test.supabase.co"
-    mock_settings.supabase_key = "test-key"
+    mock_settings.supabase_url.get_secret_value.return_value = "https://test.supabase.co"
+    mock_settings.supabase_key.get_secret_value.return_value = "test-key"
 
     with patch("src.db.client.create_client") as mock_create:
         with patch("src.core.config.get_settings", return_value=mock_settings):
@@ -30,8 +30,8 @@ def test_get_supabase_client_is_singleton() -> None:
     from src.db.client import get_supabase_client
 
     mock_settings = MagicMock()
-    mock_settings.supabase_url = "https://test.supabase.co"
-    mock_settings.supabase_key = "test-key"
+    mock_settings.supabase_url.get_secret_value.return_value = "https://test.supabase.co"
+    mock_settings.supabase_key.get_secret_value.return_value = "test-key"
 
     with patch("src.db.client.create_client") as mock_create:
         with patch("src.core.config.get_settings", return_value=mock_settings):

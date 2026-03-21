@@ -31,7 +31,7 @@ def _get_llm() -> BaseChatModel:
     return init_chat_model(
         model=settings.llm_model,
         model_provider=settings.llm_provider,
-        api_key=settings.openai_api_key,
+        api_key=settings.openai_api_key.get_secret_value(),
         base_url=settings.llm_provider_base_url,
         temperature=0,
         streaming=True,

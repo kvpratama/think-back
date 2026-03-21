@@ -4,7 +4,7 @@ import os
 from unittest.mock import patch
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from pydantic_settings import SettingsConfigDict
 
 
@@ -19,18 +19,18 @@ def test_settings_loads_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.core.config import Settings
 
     settings = Settings(
-        supabase_url="https://test.supabase.co",
-        supabase_key="test-key",
-        openai_api_key="sk-test123",
-        gemini_api_key="gemini-test-key",
-        telegram_bot_token="123:ABC-DEF",
+        supabase_url=SecretStr("https://test.supabase.co"),
+        supabase_key=SecretStr("test-key"),
+        openai_api_key=SecretStr("sk-test123"),
+        gemini_api_key=SecretStr("gemini-test-key"),
+        telegram_bot_token=SecretStr("123:ABC-DEF"),
     )
 
-    assert settings.supabase_url == "https://test.supabase.co"
-    assert settings.supabase_key == "test-key"
-    assert settings.openai_api_key == "sk-test123"
-    assert settings.gemini_api_key == "gemini-test-key"
-    assert settings.telegram_bot_token == "123:ABC-DEF"
+    assert settings.supabase_url.get_secret_value() == "https://test.supabase.co"
+    assert settings.supabase_key.get_secret_value() == "test-key"
+    assert settings.openai_api_key.get_secret_value() == "sk-test123"
+    assert settings.gemini_api_key.get_secret_value() == "gemini-test-key"
+    assert settings.telegram_bot_token.get_secret_value() == "123:ABC-DEF"
 
 
 def test_settings_requires_all_env_vars() -> None:
@@ -71,11 +71,11 @@ def test_settings_has_default_llm_model() -> None:
         from src.core.config import Settings
 
         settings = Settings(
-            supabase_url="https://test.supabase.co",
-            supabase_key="test-key",
-            openai_api_key="sk-test",
-            gemini_api_key="gemini-test",
-            telegram_bot_token="123:ABC",
+            supabase_url=SecretStr("https://test.supabase.co"),
+            supabase_key=SecretStr("test-key"),
+            openai_api_key=SecretStr("sk-test"),
+            gemini_api_key=SecretStr("gemini-test"),
+            telegram_bot_token=SecretStr("123:ABC"),
             llm_model="gpt-4o-mini",
         )
         assert settings.llm_model == "gpt-4o-mini"
@@ -100,11 +100,11 @@ def test_settings_has_default_embedding_model() -> None:
         from src.core.config import Settings
 
         settings = Settings(
-            supabase_url="https://test.supabase.co",
-            supabase_key="test-key",
-            openai_api_key="sk-test",
-            gemini_api_key="gemini-test",
-            telegram_bot_token="123:ABC",
+            supabase_url=SecretStr("https://test.supabase.co"),
+            supabase_key=SecretStr("test-key"),
+            openai_api_key=SecretStr("sk-test"),
+            gemini_api_key=SecretStr("gemini-test"),
+            telegram_bot_token=SecretStr("123:ABC"),
             embedding_model="gemini-embedding-001",
         )
         assert settings.embedding_model == "gemini-embedding-001"
@@ -128,10 +128,10 @@ def test_settings_has_default_vector_dimensions() -> None:
         from src.core.config import Settings
 
         settings = Settings(
-            supabase_url="https://test.supabase.co",
-            supabase_key="test-key",
-            openai_api_key="sk-test",
-            gemini_api_key="gemini-test",
-            telegram_bot_token="123:ABC",
+            supabase_url=SecretStr("https://test.supabase.co"),
+            supabase_key=SecretStr("test-key"),
+            openai_api_key=SecretStr("sk-test"),
+            gemini_api_key=SecretStr("gemini-test"),
+            telegram_bot_token=SecretStr("123:ABC"),
         )
         assert settings.vector_dimensions == 768

@@ -26,4 +26,6 @@ def get_supabase_client() -> Client:
     from src.core.config import get_settings
 
     settings = get_settings()
-    return create_client(settings.supabase_url, settings.supabase_key)
+    return create_client(
+        settings.supabase_url.get_secret_value(), settings.supabase_key.get_secret_value()
+    )

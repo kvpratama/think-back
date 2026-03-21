@@ -160,7 +160,9 @@ def create_application() -> Application:
     settings = get_settings()
 
     # Create the application
-    application = Application.builder().token(settings.telegram_bot_token).build()
+    application = (
+        Application.builder().token(settings.telegram_bot_token.get_secret_value()).build()
+    )
 
     # Add handlers
     application.add_handler(CommandHandler("start", start_command))

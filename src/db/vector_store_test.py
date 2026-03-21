@@ -13,7 +13,7 @@ def mock_settings() -> MagicMock:
     settings.gemini_api_key = "test-gemini-key"
     settings.embedding_model = "gemini-embedding-exp-03-16"
     settings.vector_dimensions = 768
-    settings.supabase_url = "https://test.supabase.co"
+    settings.supabase_url.get_secret_value.return_value = "https://test.supabase.co"
     settings.supabase_key = "test-key"
     return settings
 
@@ -22,8 +22,6 @@ def test_get_embedding_generates_embedding(
     mock_settings: MagicMock,
 ) -> None:
     """Test that get_embedding generates an embedding for text."""
-    from pydantic import SecretStr
-
     from src.db.vector_store import _get_embeddings, get_embedding
 
     with patch("src.db.vector_store.GoogleGenerativeAIEmbeddings") as mock_embeddings:
@@ -42,7 +40,7 @@ def test_get_embedding_generates_embedding(
             assert result == [0.1] * 768
             mock_embeddings.assert_called_once_with(
                 model="gemini-embedding-exp-03-16",
-                google_api_key=SecretStr("test-gemini-key"),
+                google_api_key=mock_settings.gemini_api_key,
                 output_dimensionality=768,
             )
             mock_embedder.aembed_query.assert_called_once_with("test text")

@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,11 +31,11 @@ class Settings(BaseSettings):
     )
 
     # Required settings (loaded from environment variables)
-    supabase_url: str
-    supabase_key: str
-    openai_api_key: str
-    gemini_api_key: str
-    telegram_bot_token: str
+    supabase_url: SecretStr
+    supabase_key: SecretStr
+    openai_api_key: SecretStr
+    gemini_api_key: SecretStr
+    telegram_bot_token: SecretStr
 
     # Optional settings with defaults
     llm_model: str = "gpt-4o-mini"
