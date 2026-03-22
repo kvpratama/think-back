@@ -67,37 +67,40 @@ async def test_graph_query_flow() -> None:
 
     _get_llm.cache_clear()
 
-    with patch("src.agent.nodes.retrieve_memories.db_search_memories") as mock_search:
-        with patch("src.agent.nodes.generate_answer.init_chat_model") as mock_init_model:
-            with patch("src.core.config.Settings") as mock_settings:
-                mock_settings_instance = MagicMock()
-                mock_settings_instance.llm_model = "gpt-4o-mini"
-                mock_settings_instance.llm_provider = "openai"
-                mock_settings_instance.openai_api_key.get_secret_value.return_value = "test-key"
-                mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1"
-                mock_settings.return_value = mock_settings_instance
+    try:
+        with patch("src.agent.nodes.retrieve_memories.db_search_memories") as mock_search:
+            with patch("src.agent.nodes.generate_answer.init_chat_model") as mock_init_model:
+                with patch("src.core.config.Settings") as mock_settings:
+                    mock_settings_instance = MagicMock()
+                    mock_settings_instance.llm_model = "gpt-4o-mini"
+                    mock_settings_instance.llm_provider = "openai"
+                    mock_settings_instance.openai_api_key.get_secret_value.return_value = "test-key"
+                    mock_settings_instance.llm_provider_base_url = "https://api.openai.com/v1"
+                    mock_settings.return_value = mock_settings_instance
 
-                mock_search.return_value = [
-                    {
-                        "content": "Consistency beats intensity",
-                        "summary": "habits",
-                        "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
-                    }
-                ]
+                    mock_search.return_value = [
+                        {
+                            "content": "Consistency beats intensity",
+                            "summary": "habits",
+                            "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
+                        }
+                    ]
 
-                mock_model = MagicMock()
-                mock_model.ainvoke = AsyncMock()
-                mock_model.ainvoke.return_value.content = (
-                    "From your saved memories:\n\n• Consistency beats intensity."
-                )
-                mock_init_model.return_value = mock_model
+                    mock_model = MagicMock()
+                    mock_model.ainvoke = AsyncMock()
+                    mock_model.ainvoke.return_value.content = (
+                        "From your saved memories:\n\n• Consistency beats intensity."
+                    )
+                    mock_init_model.return_value = mock_model
 
-                result = await graph.ainvoke(
-                    initial_state, config={"configurable": {"thread_id": "test"}}
-                )
+                    result = await graph.ainvoke(
+                        initial_state, config={"configurable": {"thread_id": "test"}}
+                    )
 
-                assert result["intent"] == "query"
-                assert "From your saved memories" in result["response"]
+                    assert result["intent"] == "query"
+                    assert "From your saved memories" in result["response"]
+    finally:
+        _get_llm.cache_clear()
 
 
 async def test_graph_save_retry_behavior() -> None:

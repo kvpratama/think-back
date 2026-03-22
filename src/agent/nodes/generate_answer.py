@@ -103,6 +103,7 @@ async def generate_answer(state: AgentState) -> dict[str, Any]:
             "response": response_text,
         }
     except Exception as e:
+        logger.exception("Failed to generate answer")
         error_response = "Sorry, I encountered an error while generating a response."
         return {
             "messages": [user_msg, AIMessage(content=error_response)],
