@@ -46,15 +46,10 @@ async def intent_router(
     user_input = state["user_input"].strip()
     user_input_lower = user_input.lower()
 
-    if user_input_lower.startswith("/save"):
-        cleaned = user_input.removeprefix(user_input[: len("/save")]).strip()
-        return Command(update={"intent": "save", "cleaned_input": cleaned}, goto="save_memory")
-    elif user_input_lower.startswith(("/ask", "/query")):
-        prefix_len = len("/ask") if user_input_lower.startswith("/ask") else len("/query")
-        cleaned = user_input[prefix_len:].strip()
-        return Command(
-            update={"intent": "query", "cleaned_input": cleaned}, goto="retrieve_memories"
-        )
+    if user_input_lower == "/save" or user_input_lower.startswith("/save "):
+        prefix = "/save"
+    elif user_input_lower == "/ask" or user_input_lower.startswith("/ask "):
+        prefix = "/ask"
     else:
         return Command(
             update={
@@ -65,3 +60,19 @@ async def intent_router(
             },
             goto="__end__",
         )
+
+    cleaned = user_input[len(prefix) :].strip()
+    if not cleaned:
+        return Command(
+            update={
+                "intent": None,
+                "cleaned_input": "",
+                "error": f"No content provided after {prefix}.",
+                "response": f"No content provided after {prefix}.",
+            },
+            goto="__end__",
+        )
+
+    if prefix == "/save":
+        return Command(update={"intent": "save", "cleaned_input": cleaned}, goto="save_memory")
+    return Command(update={"intent": "query", "cleaned_input": cleaned}, goto="retrieve_memories")

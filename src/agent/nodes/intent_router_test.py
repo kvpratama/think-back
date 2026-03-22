@@ -45,8 +45,8 @@ async def test_intent_router_detects_query_intent() -> None:
     assert update["cleaned_input"] == "What do I know about habits?"
 
 
-async def test_intent_router_detects_query_command() -> None:
-    """Test that intent_router detects /query command."""
+async def test_intent_router_rejects_query_command() -> None:
+    """Test that intent_router rejects /query as an unknown command."""
     from src.agent.nodes.intent_router import intent_router
 
     state: AgentState = {
@@ -62,8 +62,50 @@ async def test_intent_router_detects_query_command() -> None:
     result = await intent_router(state)
     update = result.update or {}
 
-    assert update["intent"] == "query"
-    assert update["cleaned_input"] == "What are my habits?"
+    assert update["intent"] is None
+    assert update["error"] is not None
+
+
+async def test_intent_router_rejects_prefix_match() -> None:
+    """Test that /saved is not matched as /save."""
+    from src.agent.nodes.intent_router import intent_router
+
+    state: AgentState = {
+        "user_input": "/saved something",
+        "cleaned_input": "",
+        "intent": None,
+        "memories": [],
+        "response": "",
+        "error": None,
+        "messages": [],
+    }
+
+    result = await intent_router(state)
+    update = result.update or {}
+
+    assert update["intent"] is None
+    assert update["error"] is not None
+
+
+async def test_intent_router_rejects_empty_body() -> None:
+    """Test that /save with no content returns an error."""
+    from src.agent.nodes.intent_router import intent_router
+
+    state: AgentState = {
+        "user_input": "/save ",
+        "cleaned_input": "",
+        "intent": None,
+        "memories": [],
+        "response": "",
+        "error": None,
+        "messages": [],
+    }
+
+    result = await intent_router(state)
+    update = result.update or {}
+
+    assert update["intent"] is None
+    assert "No content provided" in update["error"]
 
 
 async def test_intent_router_handles_unknown_intent() -> None:
