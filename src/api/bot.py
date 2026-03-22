@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 import time
 
+from dotenv import load_dotenv
 from langgraph.checkpoint.memory import InMemorySaver
 from telegram import Update
 from telegram.error import BadRequest, TelegramError
@@ -22,6 +23,11 @@ from telegram.ext import (
 )
 
 from src.core.config import get_settings
+
+# Load .env variables before langgraph or langsmith imports;
+# the LangSmith SDK initializes tracing on startup and needs
+# the credentials present in the process environment.
+load_dotenv()
 
 
 def _get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
