@@ -1,5 +1,7 @@
 """Tests for the ThinkBack agent graph."""
 
+import uuid
+
 from src.agent.state import AgentState
 
 
@@ -31,7 +33,10 @@ async def test_graph_save_flow() -> None:
     }
 
     with patch("src.agent.nodes.save_memory.db_save_memory") as mock_save:
-        mock_save.return_value = {"id": "test-id", "content": "Consistency beats intensity"}
+        mock_save.return_value = {
+            "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
+            "content": "Consistency beats intensity",
+        }
 
         result = await graph.ainvoke(initial_state, config={"configurable": {"thread_id": "test"}})
 
@@ -76,7 +81,7 @@ async def test_graph_query_flow() -> None:
                     {
                         "content": "Consistency beats intensity",
                         "summary": "habits",
-                        "id": "test-id-1",
+                        "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
                     }
                 ]
 
@@ -118,7 +123,10 @@ async def test_graph_save_retry_behavior() -> None:
         mock_save.side_effect = [
             Exception("Transient error 1"),
             Exception("Transient error 2"),
-            {"id": "test-id", "content": "Consistency beats intensity"},
+            {
+                "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
+                "content": "Consistency beats intensity",
+            },
         ]
 
         result = await graph.ainvoke(initial_state, config={"configurable": {"thread_id": "test"}})

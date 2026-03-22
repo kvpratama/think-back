@@ -6,6 +6,8 @@ uses a reducer for the messages list. Other list fields like memories
 are overwritten per query.
 """
 
+import datetime
+import uuid
 from typing import Any, Literal, NotRequired, TypedDict
 
 from langgraph.graph import MessagesState
@@ -19,13 +21,13 @@ class Memory(TypedDict):
     search similarity scores.
     """
 
-    id: str | Any  # Can be UUID from DB or string from search metadata
+    id: NotRequired[uuid.UUID]
     content: str
     similarity: NotRequired[float]
     metadata: NotRequired[dict[str, Any]]
     source: NotRequired[str | None]
-    created_at: NotRequired[str | Any]
-    last_reviewed_at: NotRequired[str | Any | None]
+    created_at: NotRequired[datetime.datetime]
+    last_reviewed_at: NotRequired[datetime.datetime | None]
     review_count: NotRequired[int]
     test_score_avg: NotRequired[float]
 

@@ -63,6 +63,11 @@ def build_graph(
     graph.add_edge("save_memory", END)
     graph.add_edge("generate_answer", END)
 
-    if checkpointer is None or not isinstance(checkpointer, BaseCheckpointSaver):
+    if checkpointer is None:
         return graph.compile(checkpointer=InMemorySaver())
+    if not isinstance(checkpointer, BaseCheckpointSaver):
+        raise TypeError(
+            "checkpointer must be an instance of BaseCheckpointSaver, "
+            f"got {type(checkpointer).__name__}"
+        )
     return graph.compile(checkpointer=checkpointer)

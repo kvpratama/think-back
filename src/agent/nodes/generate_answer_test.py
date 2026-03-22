@@ -1,5 +1,6 @@
 """Tests for the generate_answer node."""
 
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.agent.state import AgentState
@@ -14,7 +15,10 @@ async def test_generate_answer_node_creates_response() -> None:
         "cleaned_input": "What do I know about habits?",
         "intent": "query",
         "memories": [
-            {"content": "Consistency beats intensity", "id": "test-id-1"},
+            {
+                "content": "Consistency beats intensity",
+                "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
+            },
         ],
         "response": "",
         "error": None,
@@ -66,7 +70,9 @@ async def test_generate_answer_node_handles_error() -> None:
         "user_input": "/ask What do I know about habits?",
         "cleaned_input": "What do I know about habits?",
         "intent": "query",
-        "memories": [{"content": "test memory", "id": "test-id-1"}],
+        "memories": [
+            {"content": "test memory", "id": uuid.UUID("00000000-0000-0000-0000-000000000001")}
+        ],
         "response": "",
         "error": None,
         "messages": [],

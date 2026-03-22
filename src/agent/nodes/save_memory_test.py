@@ -1,5 +1,6 @@
 """Tests for the save_memory node."""
 
+import uuid
 from unittest.mock import patch
 
 from src.agent.state import AgentState
@@ -20,7 +21,10 @@ async def test_save_memory_node_saves_content() -> None:
     }
 
     with patch("src.agent.nodes.save_memory.db_save_memory") as mock_save:
-        mock_result = {"id": "test-id", "content": state["cleaned_input"]}
+        mock_result = {
+            "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
+            "content": state["cleaned_input"],
+        }
         mock_save.return_value = mock_result
 
         result = await save_memory(state)

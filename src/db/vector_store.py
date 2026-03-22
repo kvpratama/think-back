@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from functools import lru_cache
 
 from langchain_community.vectorstores import SupabaseVectorStore
@@ -81,7 +82,7 @@ async def save_memory(content: str, summary: str | None = None) -> Memory:
     # Use aadd_documents to insert with embeddings generated automatically
     ids = await vector_store.aadd_documents([document])
 
-    return {"id": ids[0], "content": content}
+    return {"id": uuid.UUID(ids[0]), "content": content}
 
 
 async def search_memories(
@@ -124,7 +125,6 @@ async def search_memories(
         if score >= threshold:
             result: Memory = {
                 "content": doc.page_content,
-                "id": doc.metadata.get("id"),
                 "similarity": score,
             }
             results.append(result)

@@ -5,6 +5,10 @@ from functools import lru_cache
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# COUPLING CONSTRAINT: This value must match the output dimensions of the
+# configured embedding_model (Settings.embedding_model) AND the vector column
+# size in the database schema (supabase/schema.sql). Changing one without
+# updating the others will cause dimension mismatch errors.
 VECTOR_DIMENSIONS = 768
 
 

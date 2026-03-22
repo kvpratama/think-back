@@ -45,4 +45,4 @@ async def retrieve_memories(state: AgentState) -> dict[str, Any]:
         }
     except Exception as e:
         logger.exception("Failed to retrieve memories: %s", e)
-        raise e
+        raise

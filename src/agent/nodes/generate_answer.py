@@ -76,7 +76,7 @@ async def generate_answer(state: AgentState) -> dict[str, Any]:
 
     try:
         # Format memories for the prompt
-        memories_text = "\n".join([f"• {m['content']}" for m in state["memories"]])
+        memories_text = "\n".join([f"• {m.get('content', '')}" for m in state["memories"]])
 
         # Get cached LLM instance
         llm = _get_llm()
