@@ -5,6 +5,8 @@ from functools import lru_cache
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+VECTOR_DIMENSIONS = 768
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
@@ -20,7 +22,6 @@ class Settings(BaseSettings):
         telegram_bot_token: Telegram bot authentication token.
         llm_model: LLM model name to use for generation.
         embedding_model: Embedding model name for vector generation.
-        vector_dimensions: Number of dimensions for vector embeddings.
     """
 
     model_config = SettingsConfigDict(
@@ -42,7 +43,6 @@ class Settings(BaseSettings):
     llm_provider: str = "openai"
     llm_provider_base_url: str = "https://api.openai.com/v1"
     embedding_model: str = "gemini-embedding-001"
-    vector_dimensions: int = 768
 
 
 @lru_cache

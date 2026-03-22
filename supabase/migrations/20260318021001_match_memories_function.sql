@@ -14,7 +14,8 @@
 -- our memories table columns:
 --   content   → memories.content (the full saved text)
 --   metadata  → a JSONB object we build from our columns
---              (summary, source, last_reviewed_at, review_count, test_score_avg)
+--              (source, last_reviewed_at, review_count, test_score_avg)
+--              plus any additional memories.metadata stored in the table
 --
 -- The similarity score is: 1 - cosine_distance (higher = more similar)
 
@@ -42,7 +43,7 @@ begin
       'last_reviewed_at', memories.last_reviewed_at,
       'review_count',     memories.review_count,
       'test_score_avg',   memories.test_score_avg
-    ) as metadata,
+    ) || memories.metadata as metadata,
     1 - (memories.embedding <=> query_embedding) as similarity
   from memories
   -- Apply optional metadata filter if passed by LangChain

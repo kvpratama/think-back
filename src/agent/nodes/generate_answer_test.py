@@ -47,9 +47,15 @@ async def test_generate_answer_node_handles_no_memories() -> None:
         "messages": [],
     }
 
-    result = await generate_answer(state)
+    mock_response = MagicMock()
+    mock_response.content = "You have no saved knowledge about sleep yet."
+    mock_llm = MagicMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
-    assert "saved" in result["response"].lower() or "knowledge" in result["response"].lower()
+    with patch("src.agent.nodes.generate_answer._get_llm", return_value=mock_llm):
+        result = await generate_answer(state)
+
+        assert "saved" in result["response"].lower() or "knowledge" in result["response"].lower()
 
 
 async def test_generate_answer_node_handles_error() -> None:

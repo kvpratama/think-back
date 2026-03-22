@@ -110,28 +110,21 @@ def test_settings_has_default_embedding_model() -> None:
         assert settings.embedding_model == "gemini-embedding-001"
 
 
-def test_settings_has_default_vector_dimensions() -> None:
-    """Test that Settings has default vector dimensions."""
+def test_vector_dimensions_is_fixed_constant() -> None:
+    """Test that VECTOR_DIMENSIONS is a fixed constant, not configurable via Settings."""
+    from src.core.config import VECTOR_DIMENSIONS
+
+    # VECTOR_DIMENSIONS should be a fixed constant
+    assert VECTOR_DIMENSIONS == 768
+
+    # Verify it's not a configurable field on Settings
     from src.core.config import Settings
 
-    with patch.dict(
-        os.environ,
-        {
-            "SUPABASE_URL": "https://test.supabase.co",
-            "SUPABASE_KEY": "test-key",
-            "OPENAI_API_KEY": "sk-test",
-            "GEMINI_API_KEY": "gemini-test",
-            "TELEGRAM_BOT_TOKEN": "123:ABC",
-        },
-        clear=True,
-    ):
-        from src.core.config import Settings
-
-        settings = Settings(
-            supabase_url=SecretStr("https://test.supabase.co"),
-            supabase_key=SecretStr("test-key"),
-            openai_api_key=SecretStr("sk-test"),
-            gemini_api_key=SecretStr("gemini-test"),
-            telegram_bot_token=SecretStr("123:ABC"),
-        )
-        assert settings.vector_dimensions == 768
+    settings = Settings(
+        supabase_url=SecretStr("https://test.supabase.co"),
+        supabase_key=SecretStr("test-key"),
+        openai_api_key=SecretStr("sk-test"),
+        gemini_api_key=SecretStr("gemini-test"),
+        telegram_bot_token=SecretStr("123:ABC"),
+    )
+    assert not hasattr(settings, "vector_dimensions")

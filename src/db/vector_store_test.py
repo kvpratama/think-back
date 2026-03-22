@@ -12,7 +12,6 @@ def mock_settings() -> MagicMock:
     settings = MagicMock()
     settings.gemini_api_key = "test-gemini-key"
     settings.embedding_model = "gemini-embedding-exp-03-16"
-    settings.vector_dimensions = 768
     settings.supabase_url.get_secret_value.return_value = "https://test.supabase.co"
     settings.supabase_key = "test-key"
     return settings

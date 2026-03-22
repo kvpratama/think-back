@@ -29,13 +29,13 @@ def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
     Returns:
         GoogleGenerativeAIEmbeddings configured instance.
     """
-    from src.core.config import get_settings
+    from src.core.config import VECTOR_DIMENSIONS, get_settings
 
     settings = get_settings()
     return GoogleGenerativeAIEmbeddings(
         model=settings.embedding_model,
         google_api_key=settings.gemini_api_key,
-        output_dimensionality=settings.vector_dimensions,
+        output_dimensionality=VECTOR_DIMENSIONS,
     )
 
 

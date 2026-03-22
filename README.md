@@ -25,6 +25,8 @@
 | **Bot Interface** | [python-telegram-bot](https://python-telegram-bot.org/) |
 | **Package Management** | [uv](https://github.com/astral-sh/uv) |
 
+> **Note**: Vector dimensions are fixed at 768. Changing this requires a full database migration.
+
 ---
 
 ## 🚀 Getting Started
