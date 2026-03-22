@@ -64,8 +64,10 @@ async def test_graph_query_flow() -> None:
     }
 
     from src.agent.nodes.generate_answer import _get_llm
+    from src.core.config import get_settings
 
     _get_llm.cache_clear()
+    get_settings.cache_clear()
 
     try:
         with patch("src.agent.nodes.retrieve_memories.db_search_memories") as mock_search:
@@ -101,6 +103,7 @@ async def test_graph_query_flow() -> None:
                     assert "From your saved memories" in result["response"]
     finally:
         _get_llm.cache_clear()
+        get_settings.cache_clear()
 
 
 async def test_graph_save_retry_behavior() -> None:

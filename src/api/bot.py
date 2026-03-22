@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
 
+import logging
 import time
 
 from dotenv import load_dotenv
@@ -23,6 +24,8 @@ from telegram.ext import (
 )
 
 from src.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 # Load .env variables before langgraph or langsmith imports;
 # the LangSmith SDK initializes tracing on startup and needs
@@ -103,7 +106,7 @@ async def handle_message(
             },
             config={
                 "configurable": {
-                    "thread_id": str(chat.id),
+                    "thread_id": f"{chat.id}_{update.message.from_user.id}",  # type: ignore[union-attr]
                 }
             },
             version="v2",
@@ -138,6 +141,7 @@ async def handle_message(
                 final_result = event["data"]["output"]
                 final_response = final_result.get("response") or "No response generated."
     except Exception:
+        logger.exception("Error processing message in chat %s", chat.id)
         final_response = accumulated_response or "Sorry, something went wrong. Please try again."
     finally:
         # Always replace the placeholder message, even on errors
