@@ -128,5 +128,9 @@ async def search_memories(
                 "similarity": score,
             }
             results.append(result)
-    logger.debug("Search results: %s", results)
+    logger.debug(
+        "Search returned %d results, scores: %s",
+        len(results),
+        [r.get("similarity") for r in results],
+    )
     return results
