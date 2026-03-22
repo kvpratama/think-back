@@ -14,7 +14,6 @@ create or replace view public.memories_with_tags as
 select
   m.id,
   m.content,
-  m.summary,
   m.source,
   m.created_at,
   m.last_reviewed_at,
@@ -40,7 +39,6 @@ group by m.id;
 create or replace view public.surfacing_candidates as
 select
   m.id,
-  m.summary,
   m.source,
   m.review_count,
   m.test_score_avg,
