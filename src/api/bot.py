@@ -98,11 +98,6 @@ async def handle_message(
         async for event in graph.astream_events(
             {
                 "user_input": user_input,
-                "cleaned_input": "",
-                "intent": None,
-                "memories": [],
-                "response": "",
-                "error": None,
             },
             config={
                 "configurable": {
