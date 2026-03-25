@@ -79,13 +79,17 @@ async def handle_message(
         update: The Telegram update.
         context: The Telegram context.
     """
-    user_input = update.message.text  # type: ignore[union-attr]
-    chat = update.message.chat  # type: ignore[union-attr]
+    if not update.message or not update.message.from_user:
+        return
+
+    user_input = update.message.text
+    chat = update.message.chat
+    user_id = update.message.from_user.id
 
     graph = _get_graph(context)
 
     # Initial thinking message
-    sent_message = await update.message.reply_text("Thinking... 🧠")  # type: ignore[union-attr]
+    sent_message = await update.message.reply_text("Thinking... 🧠")
 
     accumulated_response = ""
     final_response = ""
@@ -101,7 +105,7 @@ async def handle_message(
             },
             config={
                 "configurable": {
-                    "thread_id": f"{chat.id}_{update.message.from_user.id}",  # type: ignore[union-attr]
+                    "thread_id": f"{chat.id}_{user_id}",
                 }
             },
             version="v2",
@@ -148,7 +152,7 @@ async def handle_message(
                 text=final_response[:telegram_char_limit],
             )
         except TelegramError:
-            await update.message.reply_text(  # type: ignore[union-attr]
+            await update.message.reply_text(
                 final_response[:telegram_char_limit],
             )
 
