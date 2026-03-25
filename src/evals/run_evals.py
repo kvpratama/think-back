@@ -13,11 +13,11 @@ Usage:
 
 """
 
-# from src.evals.evaluators.answer_faithfulness import answer_faithfulness
 from dotenv import load_dotenv
 from langchain_core.runnables import RunnableConfig
 from langsmith.evaluation import aevaluate
 
+from src.evals.evaluators.answer_faithfulness import answer_faithfulness
 from src.evals.evaluators.retrieval_hit_rate import retrieval_hit_rate
 
 load_dotenv()
@@ -34,7 +34,7 @@ async def run_pipeline(inputs: dict) -> dict:
     config: RunnableConfig = {"configurable": {"thread_id": "evals_thread_id"}}
     graph = build_graph()
     response = await graph.ainvoke(inputs, config=config)
-    return {"retrieved_memories": response["memories"], "answer": response["response"]}
+    return {"retrieved_memories": response["memories"], "response": response["response"]}
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ async def main():
         data="thinkback-eval",
         evaluators=[
             retrieval_hit_rate,
-            # answer_faithfulness,
+            answer_faithfulness,
         ],
         experiment_prefix="thinkback",
         metadata={

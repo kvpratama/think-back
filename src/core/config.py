@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     llm_provider_base_url: str = "https://api.openai.com/v1"
     embedding_model: str = "gemini-embedding-001"
 
+    # LLM for evaluation
+    eval_llm_model: str = "gpt-4o"
+    eval_llm_provider: str = "openai"
+    eval_llm_provider_base_url: str = "https://api.openai.com/v1"
+
 
 @lru_cache
 def get_settings() -> Settings:
