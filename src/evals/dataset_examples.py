@@ -89,10 +89,10 @@ MEMORIES: dict[str, str] = {
     "goals": "Goals are for people who care about winning once. Systems are for people who care about winning repeatedly.",
     "pain": "Pain is temporary. It may last a minute, or an hour, or a day, or a year, but eventually it will subside and something else will take its place. If I quit, however, it lasts forever. Lance Armstrong",
     "priorities": "Think about what's important to you. Spend some time—real, uninterrupted time—thinking about what's important to you, what your priorities are. Then, work toward that and forsake all the others. It's not enough to wish and hope. One must act—and act right",
-    "coelho": "Paulo Coelho:\"One day you will wake up and there won't be any more time to do the things you've always wanted. Do it now.\"",
+    "coelho": "Paulo Coelho:“One day you will wake up and there won’t be any more time to do the things you’ve always wanted. Do it now.”",
     "consistency": "Consistency beats intensity",
     "standards": "Life is harder when you expect a lot of the world and little of yourself. Life is easier when you expect a lot of yourself and little of the world. High standards, low expectations.",
-    "garcia": "\"The way I feel about it is that if you read a paper or listen to the news, what do you get? It's negative. All you get is death, war, riots, unpleasantness. I think that if you tune yourself away from that, it's possible for you to rediscover what it is that's positive about being alive. And I think it's that consciousness that's essential for survival. It's like, the more that we believe the negative reality, the more real it is. For those people that don't give it any energy, that don't play the game, the game is non-existent. It's only as strong as the people who are willing to let themselves be slaves to it.\" Jerry Garcia 1971",
+    "garcia": "“The way I feel about it is that if you read a paper or listen to the news, what do you get? It’s negative. All you get is death, war, riots, unpleasantness. I think that if you tune yourself away from that, it’s possible for you to rediscover what it is that’s positive about being alive. And I think it’s that consciousness that’s essential for survival. It’s like, the more that we believe the negative reality, the more real it is. For those people that don’t give it any energy, that don’t play the game, the game is non-existent. It’s only as strong as the people who are willing to let themselves be slaves to it.” Jerry Garcia 1971 |",
 }
 
 EXAMPLES: list[EvalExample] = [

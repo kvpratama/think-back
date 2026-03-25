@@ -37,6 +37,7 @@ packages = ["src"]
 
 [project.scripts]
 seed-dataset = "src.evals.seed_dataset:main"
+run-evals = "src.evals.run_evals:run"
 
 [tool.ruff]
 exclude = ["supabase/database_types.py", "supabase/schema.sql"]
