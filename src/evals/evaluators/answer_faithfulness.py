@@ -11,7 +11,7 @@ Evaluator signature follows LangSmith's (run, example) -> dict convention.
   run.outputs expected shape:
     {
       "retrieved_memories": [
-        {"page_content": "...", "metadata": {...}},
+        {"content": "...", "metadata": {...}},
         ...
       ],
       "response": "..."
@@ -84,6 +84,16 @@ class AnswerFaithfulnessModel(BaseModel):
     )
 
 
+_settings = get_settings()
+_llm_judge = init_chat_model(
+    model=_settings.eval_llm_model,
+    model_provider=_settings.eval_llm_provider,
+    api_key=_settings.openai_api_key.get_secret_value(),
+    base_url=_settings.eval_llm_provider_base_url,
+    temperature=0,
+).with_structured_output(AnswerFaithfulnessModel)
+
+
 async def answer_faithfulness(run: Run, example: Example | None) -> EvaluationResult:
     """
     LLM-as-judge evaluator. Sends retrieved memories, the generated
@@ -97,15 +107,6 @@ async def answer_faithfulness(run: Run, example: Example | None) -> EvaluationRe
             score=0,
             comment="No outputs found",
         )
-
-    settings = get_settings()
-    llm_judge = init_chat_model(
-        model=settings.eval_llm_model,
-        model_provider=settings.eval_llm_provider,
-        api_key=settings.openai_api_key.get_secret_value(),
-        base_url=settings.eval_llm_provider_base_url,
-        temperature=0,
-    ).with_structured_output(AnswerFaithfulnessModel)
 
     retrieved_docs = run.outputs.get("retrieved_memories", [])
     answer = run.outputs.get("response", "")
@@ -126,7 +127,7 @@ async def answer_faithfulness(run: Run, example: Example | None) -> EvaluationRe
         criteria=criteria,
     )
 
-    response = await llm_judge.ainvoke(
+    response = await _llm_judge.ainvoke(
         [{"role": "user", "content": prompt}],
     )
 

@@ -78,6 +78,16 @@ class AnswerRelevanceModel(BaseModel):
     )
 
 
+_settings = get_settings()
+_llm_judge = init_chat_model(
+    model=_settings.eval_llm_model,
+    model_provider=_settings.eval_llm_provider,
+    api_key=_settings.openai_api_key.get_secret_value(),
+    base_url=_settings.eval_llm_provider_base_url,
+    temperature=0,
+).with_structured_output(AnswerRelevanceModel)
+
+
 async def answer_relevance(run: Run, example: Example | None) -> EvaluationResult:
     """
     LLM-as-judge evaluator. Sends the user's question and the generated
@@ -95,15 +105,6 @@ async def answer_relevance(run: Run, example: Example | None) -> EvaluationResul
             score=0,
             comment="Missing run outputs or example inputs",
         )
-
-    settings = get_settings()
-    llm_judge = init_chat_model(
-        model=settings.eval_llm_model,
-        model_provider=settings.eval_llm_provider,
-        api_key=settings.openai_api_key.get_secret_value(),
-        base_url=settings.eval_llm_provider_base_url,
-        temperature=0,
-    ).with_structured_output(AnswerRelevanceModel)
 
     # Pull from inputs (the question) — not outputs
     run_outputs = run.outputs if hasattr(run, "outputs") else run.get("outputs", {}) or {}
@@ -127,7 +128,7 @@ async def answer_relevance(run: Run, example: Example | None) -> EvaluationResul
 
     prompt = JUDGE_PROMPT.format(question=question, answer=answer)
 
-    response = await llm_judge.ainvoke(
+    response = await _llm_judge.ainvoke(
         [{"role": "user", "content": prompt}],
     )
 
