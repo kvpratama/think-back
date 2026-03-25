@@ -2,7 +2,7 @@
 evals/evaluators/answer_faithfulness.py
 
 Evaluator: answer_faithfulness
-Method:    LLM-as-judge (claude-sonnet-4 via Anthropic API)
+Method:    LLM-as-judge
 Score:     1 if the answer is fully grounded in the retrieved memories
            0 if the answer adds information not present in the memories
 
@@ -29,6 +29,7 @@ Evaluator signature follows LangSmith's (run, example) -> dict convention.
 from typing import Literal
 
 from langchain.chat_models import init_chat_model
+from langsmith.evaluation import EvaluationResult
 from langsmith.schemas import Example, Run
 from pydantic import BaseModel, Field
 
@@ -71,13 +72,6 @@ Generated answer:
 Quality rubric:
 {criteria}
 
----
-
-Respond with valid JSON only. No preamble, no explanation outside the JSON.
-{{
-  "score": 0 or 1,
-  "reason": "one sentence explaining your score"
-}}
 """
 
 
@@ -90,19 +84,19 @@ class AnswerFaithfulnessModel(BaseModel):
     )
 
 
-def answer_faithfulness(run: Run, example: Example) -> dict:
+async def answer_faithfulness(run: Run, example: Example | None) -> EvaluationResult:
     """
     LLM-as-judge evaluator. Sends retrieved memories, the generated
     answer, and the expected_answer_criteria rubric to Claude and
     asks it to score 0 or 1.
     """
 
-    if not run.outputs or not example.outputs:
-        return {
-            "key": "answer_faithfulness",
-            "score": 0,
-            "comment": "No outputs found",
-        }
+    if not run.outputs or not example or not example.outputs or not example.metadata:
+        return EvaluationResult(
+            key="answer_faithfulness",
+            score=0,
+            comment="No outputs found",
+        )
 
     settings = get_settings()
     llm_judge = init_chat_model(
@@ -116,7 +110,7 @@ def answer_faithfulness(run: Run, example: Example) -> dict:
     retrieved_docs = run.outputs.get("retrieved_memories", [])
     answer = run.outputs.get("response", "")
     criteria = example.outputs.get("expected_answer_criteria", "")
-    case_type = example.outputs.get("metadata", {}).get("case_type", "")
+    case_type = example.metadata.get("case_type", "")
 
     # Format retrieved memories for the judge prompt
     if retrieved_docs:
@@ -132,7 +126,7 @@ def answer_faithfulness(run: Run, example: Example) -> dict:
         criteria=criteria,
     )
 
-    response = llm_judge.invoke(
+    response = await llm_judge.ainvoke(
         [{"role": "user", "content": prompt}],
     )
 
@@ -143,8 +137,8 @@ def answer_faithfulness(run: Run, example: Example) -> dict:
         score = 0
         reason = "No response from LLM"
 
-    return {
-        "key": "answer_faithfulness",
-        "score": score,
-        "comment": f"[{case_type}] {reason}",
-    }
+    return EvaluationResult(
+        key="answer_faithfulness",
+        score=score,
+        comment=f"[{case_type}] {reason}",
+    )

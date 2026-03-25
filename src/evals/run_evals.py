@@ -18,6 +18,7 @@ from langchain_core.runnables import RunnableConfig
 from langsmith.evaluation import aevaluate
 
 from src.evals.evaluators.answer_faithfulness import answer_faithfulness
+from src.evals.evaluators.answer_relevance import answer_relevance
 from src.evals.evaluators.retrieval_hit_rate import retrieval_hit_rate
 
 load_dotenv()
@@ -47,10 +48,11 @@ async def main():
         evaluators=[
             retrieval_hit_rate,
             answer_faithfulness,
+            answer_relevance,
         ],
         experiment_prefix="thinkback",
         metadata={
-            "description": "Retrieval hit rate + answer faithfulness.",
+            "description": "Retrieval hit rate + answer faithfulness + answer relevance.",
         },
         max_concurrency=1,
     )
