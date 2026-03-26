@@ -12,7 +12,7 @@ SecretStr field on Settings — no new secrets need to be added to config.py.
 
   EVAL_JURY_JUDGES='[
     {"model": "gpt-4o", "provider": "openai", "api_key_field": "openai_api_key", "base_url": ""},
-    {"model": "sonnet-4", "provider": "anthropic", "api_key_field": "anth_api_key", "base_url": ""}
+    {"model": "gemini", "provider": "gemini", "api_key_field": "gemini_api_key", "base_url": ""}
   ]'
 
   api_key_field must match a SecretStr attribute name on the Settings class
@@ -30,7 +30,10 @@ SecretStr field on Settings — no new secrets need to be added to config.py.
   example.outputs expected shape:
     {
       "expected_contents": [...],
-      "expected_answer_criteria": "plain-English rubric string",
+      "expected_answer_criteria": "plain-English rubric string"
+    }
+  example.metadata expected shape:
+    {
       "case_type": "happy_path" | "edge_case",
       "notes": "..."
     }
@@ -168,13 +171,14 @@ def _build_jury() -> list[tuple[str, Runnable]]:
                 f"(e.g. 'openai_api_key'), not the key value itself."
             )
 
+        valid_fields = [
+            k for k, v in settings.model_fields.items() if "SecretStr" in str(v.annotation)
+        ]
+
         secret = getattr(settings, cfg.api_key_field, None)
-        if secret is None:
-            valid_fields = [
-                k for k, v in settings.model_fields.items() if "SecretStr" in str(v.annotation)
-            ]
+        if secret is None or cfg.api_key_field not in valid_fields:
             raise ValueError(
-                f"api_key_field '{cfg.api_key_field}' does not exist on Settings. "
+                f"api_key_field '{cfg.api_key_field}' is not a SecretStr field on Settings. "
                 f"Available SecretStr fields: {valid_fields}"
             )
 
