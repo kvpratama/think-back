@@ -13,6 +13,8 @@ Usage:
 
 """
 
+import uuid
+
 from dotenv import load_dotenv
 from langchain_core.runnables import RunnableConfig
 from langsmith.evaluation import aevaluate
@@ -32,7 +34,7 @@ async def run_pipeline(inputs: dict) -> dict:
 
     from src.agent.graph import build_graph
 
-    config: RunnableConfig = {"configurable": {"thread_id": "evals_thread_id"}}
+    config: RunnableConfig = {"configurable": {"thread_id": f"eval-{uuid.uuid4()}"}}
     graph = build_graph()
     response = await graph.ainvoke(inputs, config=config)
     return {"retrieved_memories": response["memories"], "response": response["response"]}
@@ -41,7 +43,20 @@ async def run_pipeline(inputs: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Run the evaluation
 # ---------------------------------------------------------------------------
-async def main():
+async def main() -> None:
+    """
+    Run the ThinkBack evaluation pipeline against the 'thinkback-eval' LangSmith dataset.
+
+    Executes the LangGraph pipeline with three evaluators:
+      - retrieval_hit_rate: exact string match, deterministic
+      - answer_faithfulness: LLM-as-judge for faithfulness
+      - answer_relevance: LLM-as-judge for relevance
+
+    Prints a quick summary of scores to stdout and logs full results to LangSmith.
+
+    Returns:
+        None
+    """
     results = await aevaluate(
         run_pipeline,
         data="thinkback-eval",
@@ -70,7 +85,15 @@ async def main():
     print("\nView full results in LangSmith.")
 
 
-def run():
+def run() -> None:
+    """
+    Entry point for running evaluations via `uv run run-evals`.
+
+    Synchronously executes the async main() function using asyncio.run().
+
+    Returns:
+        None
+    """
     import asyncio
 
     asyncio.run(main())

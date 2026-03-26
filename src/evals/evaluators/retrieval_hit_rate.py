@@ -31,18 +31,42 @@ from langsmith.schemas import Example, Run
 
 def retrieval_hit_rate(run: Run, example: Example) -> dict:
     """
-    Checks whether at least one expected_content string appears
-    in the retrieved docs returned by the pipeline.
+    Compute retrieval hit rate via exact string matching.
 
-    Uses exact string match against page_content — reliable because
-    the Supabase vector retriever returns the exact stored content.
+    Checks whether at least one string in `expected_contents` appears
+    in the retrieved documents (`retrieved_memories[*]["content"]`).
 
-    Special case: if expected_contents is empty (no-match edge cases),
-    the eval passes only if the pipeline returned NO docs, or if the
-    pipeline correctly surfaced nothing relevant. We score 1 here
-    to avoid penalising correct no-match behaviour — the
-    answer_faithfulness evaluator is responsible for catching
-    hallucination in these cases.
+    Special case:
+        If `expected_contents` is empty (intended no-match case),
+        returns score = 1. Hallucinations should be handled by
+        a separate evaluator (e.g., answer_faithfulness).
+
+    Args:
+        run (Run): Contains pipeline outputs:
+            {
+                "retrieved_memories": [{"content": "...", ...}, ...],
+                "answer": "..."
+            }
+        example (Example): Contains expected outputs:
+            {
+                "expected_contents": [str, ...],
+                "case_type": str,
+                ...
+            }
+
+    Returns:
+        dict:
+            {
+                "key": "retrieval_hit_rate",
+                "score": 0 | 1,
+                "comment": str
+            }
+
+    Raises:
+        KeyError: If run.outputs or example.outputs is missing expected keys
+            (e.g., "retrieved_memories" or "expected_contents").
+        TypeError: If retrieved_memories is not a list of dicts with "content"
+            keys, or if expected_contents is not a list of strings.
     """
     retrieved_memories = run.outputs.get("retrieved_memories", []) if run.outputs else []
     expected_contents = example.outputs.get("expected_contents", []) if example.outputs else []
@@ -55,7 +79,7 @@ def retrieval_hit_rate(run: Run, example: Example) -> dict:
             "comment": "No-match case — expected_contents is intentionally empty",
         }
 
-    retrieved_contents = {doc["content"] for doc in retrieved_memories}
+    retrieved_contents = {doc["content"] for doc in retrieved_memories if "content" in doc}
 
     hits = [c for c in expected_contents if c in retrieved_contents]
     hit = len(hits) > 0

@@ -34,13 +34,13 @@ from src.evals.dataset_examples import (
     EXAMPLES,
 )
 
-load_dotenv()
-
-client = Client()
-
 
 def main() -> None:
     """Seed the LangSmith dataset with hand-crafted eval examples and tag the snapshot."""
+    load_dotenv()
+
+    client = Client()
+
     # Get or create the single long-lived dataset
     existing = next((d for d in client.list_datasets() if d.name == DATASET_NAME), None)
 

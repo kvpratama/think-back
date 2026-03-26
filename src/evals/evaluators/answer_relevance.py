@@ -91,7 +91,7 @@ _llm_judge = init_chat_model(
 async def answer_relevance(run: Run, example: Example | None) -> EvaluationResult:
     """
     LLM-as-judge evaluator. Sends the user's question and the generated
-    answer to Claude and asks it to score 0 or 1 based on whether the
+    answer to an LLM and asks it to score 0 or 1 based on whether the
     answer is relevant to what was asked.
 
     Deliberately does NOT use expected_answer_criteria — relevance is
@@ -106,18 +106,9 @@ async def answer_relevance(run: Run, example: Example | None) -> EvaluationResul
             comment="Missing run outputs or example inputs",
         )
 
-    # Pull from inputs (the question) — not outputs
-    run_outputs = run.outputs if hasattr(run, "outputs") else run.get("outputs", {}) or {}
-    example_inputs = (
-        example.inputs if hasattr(example, "inputs") else example.get("inputs", {}) or {}
-    )
-    example_metadata = (
-        example.metadata if hasattr(example, "metadata") else example.get("metadata", {}) or {}
-    )
-
-    question = example_inputs.get("user_input", "")
-    answer = run_outputs.get("response", "")
-    case_type = example_metadata.get("case_type", "")
+    question = example.inputs.get("user_input", "")
+    answer = run.outputs.get("response", "")
+    case_type = example.metadata.get("case_type", "")
 
     if not question or not answer:
         return EvaluationResult(
