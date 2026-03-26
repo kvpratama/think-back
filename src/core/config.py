@@ -39,7 +39,6 @@ class Settings(BaseSettings):
     supabase_url: SecretStr
     supabase_key: SecretStr
     openai_api_key: SecretStr
-    nvidia_api_key: SecretStr
     gemini_api_key: SecretStr
     telegram_bot_token: SecretStr
 
@@ -53,6 +52,7 @@ class Settings(BaseSettings):
     eval_llm_model: str = "gpt-4o"
     eval_llm_provider: str = "openai"
     eval_llm_provider_base_url: str = "https://api.openai.com/v1"
+    eval_llm_api_key: SecretStr = SecretStr("")
     eval_jury_judges: str = ""
 
 
