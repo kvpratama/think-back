@@ -89,7 +89,7 @@ begin
       'last_reviewed_at', memories.last_reviewed_at,
       'review_count',     memories.review_count,
       'test_score_avg',   memories.test_score_avg
-    ) || memories.metadata as metadata,
+    ) || COALESCE(memories.metadata, '{}'::jsonb) as metadata,
     1 - (memories.embedding <=> query_embedding) as similarity
   from memories
   -- Apply optional metadata filter if passed by LangChain
