@@ -43,6 +43,7 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from langchain.chat_models import init_chat_model
+from langchain_core.runnables import Runnable
 from langsmith.evaluation import EvaluationResult
 from langsmith.schemas import Example, Run
 from pydantic import BaseModel, Field
@@ -121,7 +122,7 @@ class JudgeConfig(BaseModel):
 
 
 @lru_cache(maxsize=1)
-def _build_jury() -> list[tuple[str, Any]]:
+def _build_jury() -> list[tuple[str, Runnable]]:
     """
     Parse Settings.eval_jury_judges and return cached (label, runnable) pairs.
 
@@ -151,7 +152,7 @@ def _build_jury() -> list[tuple[str, Any]]:
     if len(parsed) < 2:
         raise ValueError("EVAL_JURY_JUDGES must contain at least 2 judges for jury voting.")
 
-    jury: list[tuple[str, Any]] = []
+    jury: list[tuple[str, Runnable]] = []
     for entry in parsed:
         cfg = JudgeConfig(**entry)
 
@@ -203,7 +204,7 @@ def _format_memories(retrieved_docs: list[dict]) -> str:
     )
 
 
-async def _invoke_judge(label: str, judge: Any, prompt: str) -> tuple[str, int, str]:
+async def _invoke_judge(label: str, judge: Runnable, prompt: str) -> tuple[str, int, str]:
     """Invoke one judge. Returns (label, score, reason). Defaults to 0 on failure."""
     try:
         response = await judge.ainvoke([{"role": "user", "content": prompt}])
