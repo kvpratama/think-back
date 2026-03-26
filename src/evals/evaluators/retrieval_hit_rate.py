@@ -61,12 +61,6 @@ def retrieval_hit_rate(run: Run, example: Example) -> dict:
                 "score": 0 | 1,
                 "comment": str
             }
-
-    Raises:
-        KeyError: If run.outputs or example.outputs is missing expected keys
-            (e.g., "retrieved_memories" or "expected_contents").
-        TypeError: If retrieved_memories is not a list of dicts with "content"
-            keys, or if expected_contents is not a list of strings.
     """
     retrieved_memories = run.outputs.get("retrieved_memories", []) if run.outputs else []
     expected_contents = example.outputs.get("expected_contents", []) if example.outputs else []

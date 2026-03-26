@@ -49,8 +49,8 @@ class AgentState(MessagesState):
     """
 
     user_input: str
-    cleaned_input: NotRequired[str]
-    intent: NotRequired[Literal["save", "query"] | None]
-    memories: NotRequired[list[Memory]]
-    response: NotRequired[str]
-    error: NotRequired[str | None]
+    cleaned_input: str
+    intent: Literal["save", "query"] | None
+    memories: list[Memory]
+    response: str
+    error: str | None

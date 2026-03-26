@@ -197,6 +197,15 @@ def _build_jury() -> list[tuple[str, Runnable]]:
 
 
 def _format_memories(retrieved_docs: list[dict]) -> str:
+    """Format retrieved memories into a readable string for the judge prompt.
+
+    Args:
+        retrieved_docs: List of retrieved memory documents, each containing a 'content' key.
+
+    Returns:
+        A formatted string with numbered memory entries, or a placeholder message
+        if no memories were retrieved.
+    """
     if not retrieved_docs:
         return "(no memories were retrieved)"
     return "\n\n".join(
