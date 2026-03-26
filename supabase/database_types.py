@@ -59,10 +59,10 @@ class PublicMemoriesInsert(TypedDict):
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     embedding: Annotated[list[Any], Field(alias="embedding")]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
-    last_reviewed_at: NotRequired[Annotated[datetime.datetime, Field(alias="last_reviewed_at")]]
-    metadata: NotRequired[Annotated[Json[Any], Field(alias="metadata")]]
+    last_reviewed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="last_reviewed_at")]]
+    metadata: NotRequired[Annotated[Optional[Json[Any]], Field(alias="metadata")]]
     review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
-    source: NotRequired[Annotated[str, Field(alias="source")]]
+    source: NotRequired[Annotated[Optional[str], Field(alias="source")]]
     test_score_avg: NotRequired[Annotated[float, Field(alias="test_score_avg")]]
 
 class PublicMemoriesUpdate(TypedDict):
@@ -70,10 +70,10 @@ class PublicMemoriesUpdate(TypedDict):
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     embedding: NotRequired[Annotated[list[Any], Field(alias="embedding")]]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
-    last_reviewed_at: NotRequired[Annotated[datetime.datetime, Field(alias="last_reviewed_at")]]
-    metadata: NotRequired[Annotated[Json[Any], Field(alias="metadata")]]
+    last_reviewed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="last_reviewed_at")]]
+    metadata: NotRequired[Annotated[Optional[Json[Any]], Field(alias="metadata")]]
     review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
-    source: NotRequired[Annotated[str, Field(alias="source")]]
+    source: NotRequired[Annotated[Optional[str], Field(alias="source")]]
     test_score_avg: NotRequired[Annotated[float, Field(alias="test_score_avg")]]
 
 class PublicTags(BaseModel):
@@ -111,23 +111,23 @@ class PublicTestSessions(BaseModel):
     status: PublicTestSessionStatus = Field(alias="status")
 
 class PublicTestSessionsInsert(TypedDict):
-    completed_at: NotRequired[Annotated[datetime.datetime, Field(alias="completed_at")]]
+    completed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="completed_at")]]
     conversation: NotRequired[Annotated[Json[Any], Field(alias="conversation")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
     memory_id: Annotated[uuid.UUID, Field(alias="memory_id")]
     question: Annotated[str, Field(alias="question")]
-    score: NotRequired[Annotated[int, Field(alias="score")]]
+    score: NotRequired[Annotated[Optional[int], Field(alias="score")]]
     status: NotRequired[Annotated[PublicTestSessionStatus, Field(alias="status")]]
 
 class PublicTestSessionsUpdate(TypedDict):
-    completed_at: NotRequired[Annotated[datetime.datetime, Field(alias="completed_at")]]
+    completed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="completed_at")]]
     conversation: NotRequired[Annotated[Json[Any], Field(alias="conversation")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
     memory_id: NotRequired[Annotated[uuid.UUID, Field(alias="memory_id")]]
     question: NotRequired[Annotated[str, Field(alias="question")]]
-    score: NotRequired[Annotated[int, Field(alias="score")]]
+    score: NotRequired[Annotated[Optional[int], Field(alias="score")]]
     status: NotRequired[Annotated[PublicTestSessionStatus, Field(alias="status")]]
 
 class PublicUserSettings(BaseModel):

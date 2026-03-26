@@ -25,7 +25,14 @@ class Settings(BaseSettings):
         gemini_api_key: Google Gemini API key for embeddings.
         telegram_bot_token: Telegram bot authentication token.
         llm_model: LLM model name to use for generation.
+        llm_provider: LLM provider name (e.g., 'openai').
+        llm_provider_base_url: Base URL for the LLM provider API.
         embedding_model: Embedding model name for vector generation.
+        eval_llm_model: LLM model name for evaluation tasks.
+        eval_llm_provider: LLM provider name for evaluation tasks.
+        eval_llm_provider_base_url: Base URL for the evaluation LLM provider API.
+        eval_llm_api_key: API key for the evaluation LLM provider.
+        eval_jury_judges: Configuration for evaluation jury judges.
     """
 
     model_config = SettingsConfigDict(
@@ -47,6 +54,13 @@ class Settings(BaseSettings):
     llm_provider: str = "openai"
     llm_provider_base_url: str = "https://api.openai.com/v1"
     embedding_model: str = "gemini-embedding-001"
+
+    # LLM for evaluation
+    eval_llm_model: str = "gpt-4o"
+    eval_llm_provider: str = "openai"
+    eval_llm_provider_base_url: str = "https://api.openai.com/v1"
+    eval_llm_api_key: SecretStr = SecretStr("")
+    eval_jury_judges: str = ""
 
 
 @lru_cache
