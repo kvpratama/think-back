@@ -62,10 +62,11 @@ uv add --dev <package>
 - **Docstrings on every function and class** using Google-style format.
 
 ### LangGraph
-- **`graph.py` is assembly only** — it imports nodes and wires them together. No business logic here.
-- **Each node lives in its own file** under `src/agent/nodes/`. Node functions are `async def`.
-- `AgentState` is a `TypedDict` defined in `src/agent/state.py`.
-- Use `Annotated` fields with `operator.add` for list fields that accumulate across steps.
+- **Agent Assembly**: Keep `graph.py` for assembly only (wiring up the model, checkpointer, memory, and tools) and system prompts. Complex execution logic belongs in tools.
+- **Tool Definitions**: Define agent capabilities as tools in `src/agent/tools.py` (or a `tools/` directory) using the `@tool` decorator.
+- **State Management**: When using `create_agent()`, rely on LangGraph's native `MessagesState` for the conversational flow. Keep domain-specific data structures (like customized `Memory` TypedDicts) in `src/agent/state.py`.
+- **Human-In-The-Loop**: Implement human approvals directly inside tools using `interrupt()`.
+- **Idempotency**: Any side-effect operations (like saving to the database or external APIs) must occur **after** the `interrupt()` to prevent duplicate operations when the graph resumes.
 
 ### Supabase / Database
 - All Supabase client access goes through `src/db/client.py` — never instantiate the client inline.
@@ -103,7 +104,7 @@ Ruff is the single tool for both linting and formatting.
 ## What NOT to Do
 
 - Do not commit `.env` (it is in `.gitignore`)
-- Do not add business logic to `graph.py` — assembly only
+- Do not add complex business logic to `graph.py` — system prompts and setup only
 - Do not instantiate the Supabase client outside `src/db/client.py`
 - Do not use `pip install` — always use `uv add`
 - Do not use bare `except:` — always catch specific exceptions
