@@ -18,6 +18,7 @@ import time
 from dotenv import load_dotenv
 from langgraph.checkpoint.memory import InMemorySaver
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     Application,
@@ -90,11 +91,11 @@ async def handle_message(
     chat = update.message.chat
     user_id = update.message.from_user.id
 
+    sent_message = await update.message.reply_text("Thinking... 🧠")
+
     graph = _get_graph(context)
     thread_id = f"{chat.id}_{user_id}"
     config = RunnableConfig({"configurable": {"thread_id": thread_id}})
-
-    sent_message = await update.message.reply_text("Thinking... 🧠")
 
     accumulated_response = ""
     final_response = ""
@@ -148,18 +149,24 @@ async def handle_message(
                 ]
             )
 
-            confirm_text = f'💡 Save this insight?\n\n"{insight}"\n\n(Original: "{content}")'
+            confirm_text = (
+                f"💡 Save this insight?\n\n"
+                f"<blockquote>{insight}</blockquote>\n\n"
+                f'<i>Original: "{content}"</i>'
+            )
             try:
                 await context.bot.edit_message_text(
                     chat_id=chat.id,
                     message_id=sent_message.message_id,
                     text=confirm_text[:telegram_char_limit],
                     reply_markup=keyboard,
+                    parse_mode=ParseMode.HTML,
                 )
             except TelegramError:
                 await update.message.reply_text(
                     confirm_text[:telegram_char_limit],
                     reply_markup=keyboard,
+                    parse_mode=ParseMode.HTML,
                 )
             return
 
@@ -180,10 +187,12 @@ async def handle_message(
                     chat_id=chat.id,
                     message_id=sent_message.message_id,
                     text=final_response[:telegram_char_limit],
+                    parse_mode=ParseMode.HTML,
                 )
             except TelegramError:
                 await update.message.reply_text(
                     final_response[:telegram_char_limit],
+                    parse_mode=ParseMode.HTML,
                 )
 
 
@@ -229,7 +238,7 @@ async def handle_callback(
         response = "Sorry, something went wrong."
 
     try:
-        await query.edit_message_text(text=response)
+        await query.edit_message_text(text=response, parse_mode=ParseMode.HTML)
     except TelegramError:
         logger.exception("Failed to edit callback message")
 
