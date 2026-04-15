@@ -44,14 +44,18 @@ SYSTEM_PROMPT = (
     "for the `insight` parameter. The `content` parameter should be the "
     "user's original message verbatim.\n\n"
     "FORMATTING:\n"
-    "You are responding via Telegram, which supports HTML formatting. "
-    "Use these tags to make your responses clear and readable:\n"
+    "You are responding via Telegram, which supports a limited subset of HTML "
+    "tags. Use only these tags:\n"
     "• <b>bold</b> for emphasis or key terms\n"
     "• <i>italic</i> for titles, quotes, or subtle emphasis\n"
     "• <code>code</code> for inline code or technical terms\n"
     "• <pre>code block</pre> for multi-line code\n"
     "• <blockquote>text</blockquote> for quoting memories or insights\n"
-    "Do NOT use Markdown syntax (**, *, `, ```) — only HTML tags."
+    '• <a href="url">text</a> for links\n\n'
+    "Do NOT use Markdown syntax (**, *, `, ```) — only HTML tags.\n"
+    "Do NOT use <ul>, <ol>, <li>, <h1>-<h6>, <div>, <span>, or any other "
+    "HTML tags not listed above. For lists, use plain text with • bullets or "
+    "numbered lines (1., 2., 3.) instead."
 )
 
 
