@@ -100,16 +100,10 @@ Ruff is the single tool for both linting and formatting.
 
 ---
 
-## Pre-commit Hooks
-### TODO
-
-
----
-
 ## What NOT to Do
 
-- ❌ Do not commit `.env` (it is in `.gitignore`)
-- ❌ Do not add business logic to `graph.py` — assembly only
-- ❌ Do not instantiate the Supabase client outside `src/db/client.py`
-- ❌ Do not use `pip install` — always use `uv add`
-- ❌ Do not use bare `except:` — always catch specific exceptions
+- Do not commit `.env` (it is in `.gitignore`)
+- Do not add business logic to `graph.py` — assembly only
+- Do not instantiate the Supabase client outside `src/db/client.py`
+- Do not use `pip install` — always use `uv add`
+- Do not use bare `except:` — always catch specific exceptions
