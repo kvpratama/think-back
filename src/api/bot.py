@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from langchain_core.runnables import RunnableConfig
+
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
 
@@ -15,21 +17,21 @@ import time
 
 from dotenv import load_dotenv
 from langgraph.checkpoint.memory import InMemorySaver
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    MessageHandler,
+    filters,
 )
 
 from src.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Load .env variables before langgraph or langsmith imports;
-# the LangSmith SDK initializes tracing on startup and needs
-# the credentials present in the process environment.
 load_dotenv()
 
 
@@ -64,8 +66,10 @@ async def start_command(
     """
     await update.message.reply_text(  # type: ignore[union-attr]
         "Welcome to ThinkBack! 🧠\n\n"
-        "Use /save to save knowledge.\n"
-        "Use /ask to query your knowledge."
+        "Just type naturally:\n"
+        "• Share insights and I'll offer to save them\n"
+        "• Ask questions about your saved knowledge\n"
+        "• Or just chat!"
     )
 
 
@@ -87,36 +91,28 @@ async def handle_message(
     user_id = update.message.from_user.id
 
     graph = _get_graph(context)
+    thread_id = f"{chat.id}_{user_id}"
+    config = RunnableConfig({"configurable": {"thread_id": thread_id}})
 
-    # Initial thinking message
     sent_message = await update.message.reply_text("Thinking... 🧠")
 
     accumulated_response = ""
     final_response = ""
     last_update_time = time.monotonic()
-    update_interval = 1.0  # seconds – respects Telegram's rate limits
-    telegram_char_limit = 4000  # leave headroom below the 4096 hard limit
+    update_interval = 1.0
+    telegram_char_limit = 4000
 
-    # Use astream_events to capture streaming tokens
     try:
         async for event in graph.astream_events(
-            {
-                "user_input": user_input,
-            },
-            config={
-                "configurable": {
-                    "thread_id": f"{chat.id}_{user_id}",
-                }
-            },
+            {"messages": [{"role": "user", "content": user_input}]},
+            config=config,
             version="v2",
         ):
-            # Listen for tokens from the chat model
             if event["event"] == "on_chat_model_stream":
                 content = event["data"]["chunk"].content
                 if content:
                     accumulated_response += content if isinstance(content, str) else str(content)
 
-                    # Periodic update to Telegram to avoid rate limits
                     current_time = time.monotonic()
                     if (
                         current_time - last_update_time > update_interval
@@ -131,30 +127,111 @@ async def handle_message(
                             )
                             last_update_time = current_time
                         except BadRequest:
-                            pass  # "Message is not modified" or similar
+                            pass
                         except TelegramError:
-                            pass  # transient network / rate-limit hiccup
+                            pass
 
-            # Capture the final result from the graph
-            elif event["event"] == "on_chain_end" and event["name"] == "LangGraph":
-                final_result = event["data"]["output"]
-                final_response = final_result.get("response") or "No response generated."
+        # Check for interrupt (save confirmation)
+        state = await graph.aget_state(config)
+        if state.next:
+            # Graph is interrupted — extract the interrupt value
+            interrupt_value = state.tasks[0].interrupts[0].value
+            insight = interrupt_value.get("insight", "")
+            content = interrupt_value.get("content", "")
+
+            keyboard = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton("✅ Save", callback_data=f"save_yes|{thread_id}"),
+                        InlineKeyboardButton("❌ Cancel", callback_data=f"save_no|{thread_id}"),
+                    ]
+                ]
+            )
+
+            confirm_text = f'💡 Save this insight?\n\n"{insight}"\n\n(Original: "{content}")'
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=chat.id,
+                    message_id=sent_message.message_id,
+                    text=confirm_text[:telegram_char_limit],
+                    reply_markup=keyboard,
+                )
+            except TelegramError:
+                await update.message.reply_text(
+                    confirm_text[:telegram_char_limit],
+                    reply_markup=keyboard,
+                )
+            return
+
+        # No interrupt — send final response
+        result = await graph.aget_state(config)
+        messages = result.values.get("messages", [])
+        if messages:
+            final_response = messages[-1].content if hasattr(messages[-1], "content") else ""
+
     except Exception:
         logger.exception("Error processing message in chat %s", chat.id)
         final_response = accumulated_response or "Sorry, something went wrong. Please try again."
     finally:
-        # Always replace the placeholder message, even on errors
-        final_response = final_response or accumulated_response or "No response generated."
-        try:
-            await context.bot.edit_message_text(
-                chat_id=chat.id,
-                message_id=sent_message.message_id,
-                text=final_response[:telegram_char_limit],
-            )
-        except TelegramError:
-            await update.message.reply_text(
-                final_response[:telegram_char_limit],
-            )
+        if final_response or accumulated_response:
+            final_response = final_response or accumulated_response or "No response generated."
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=chat.id,
+                    message_id=sent_message.message_id,
+                    text=final_response[:telegram_char_limit],
+                )
+            except TelegramError:
+                await update.message.reply_text(
+                    final_response[:telegram_char_limit],
+                )
+
+
+async def handle_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle inline button callbacks for save confirmation.
+
+    Args:
+        update: The Telegram update containing the callback query.
+        context: The Telegram context.
+    """
+    query = update.callback_query
+    if not query or not query.data:
+        return
+
+    await query.answer()
+
+    parts = query.data.split("|", 1)
+    action = parts[0]
+    thread_id = parts[1] if len(parts) > 1 else ""
+
+    approved = action == "save_yes"
+
+    graph = _get_graph(context)
+    config = RunnableConfig({"configurable": {"thread_id": thread_id}})
+
+    from langgraph.types import Command
+
+    try:
+        result = await graph.ainvoke(
+            Command(resume={"approved": approved}),
+            config=config,
+        )
+
+        messages = result.get("messages", [])
+        response = messages[-1].content if messages and hasattr(messages[-1], "content") else ""
+        response = response or ("Memory saved! ✅" if approved else "Save cancelled. ❌")
+
+    except Exception:
+        logger.exception("Error processing callback")
+        response = "Sorry, something went wrong."
+
+    try:
+        await query.edit_message_text(text=response)
+    except TelegramError:
+        logger.exception("Failed to edit callback message")
 
 
 def create_application() -> Application:
@@ -162,22 +239,16 @@ def create_application() -> Application:
 
     Returns:
         Configured Telegram Application.
-
-    Example:
-        >>> app = create_application()
-        >>> app.run_polling()
     """
     settings = get_settings()
 
-    # Create the application
     application = (
         Application.builder().token(settings.telegram_bot_token.get_secret_value()).build()
     )
 
-    # Add handlers
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("save", handle_message))
-    application.add_handler(CommandHandler("ask", handle_message))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(CallbackQueryHandler(handle_callback))
 
     return application
 

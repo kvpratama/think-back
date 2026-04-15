@@ -1,4 +1,4 @@
-"""Tests for the AgentState TypedDict."""
+"""Tests for the Memory TypedDict."""
 
 import datetime
 import importlib.util
@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any, NotRequired, get_args, get_origin, get_type_hints
 
-from src.agent.state import AgentState, Memory
+from src.agent.state import Memory
 
 # Load database_types from the supabase/ project directory (not the supabase pip package).
 _spec = importlib.util.spec_from_file_location(
@@ -20,69 +20,13 @@ _spec.loader.exec_module(_mod)
 PublicMemories = _mod.PublicMemories
 
 
-def test_agent_state_has_required_fields() -> None:
-    """Test that AgentState has all required fields."""
-    # Create an instance with all required fields
-    state: AgentState = {
-        "user_input": "",
-        "cleaned_input": "",
-        "intent": None,
-        "memories": [],
-        "response": "",
-        "error": None,
-        "messages": [],
-    }
-
-    assert state["user_input"] == ""
-    assert state["cleaned_input"] == ""
-    assert state["intent"] is None
-    assert state["memories"] == []
-    assert state["response"] == ""
-    assert state["error"] is None
-    assert state["messages"] == []
-
-
-def test_agent_state_accumulates_memories() -> None:
-    """Test that memories field accumulates across updates."""
-    state1: AgentState = {
-        "user_input": "test",
-        "cleaned_input": "test",
-        "intent": "save",
-        "memories": [
-            {"content": "memory1", "id": uuid.UUID("00000000-0000-0000-0000-000000000001")}
-        ],
-        "response": "",
-        "error": None,
-        "messages": [],
-    }
-
-    state2: AgentState = {
-        "user_input": "test2",
-        "cleaned_input": "test2",
-        "intent": "query",
-        "memories": [
-            {"content": "memory2", "id": uuid.UUID("00000000-0000-0000-0000-000000000002")}
-        ],
-        "response": "response",
-        "error": None,
-        "messages": [],
-    }
-
-    # When merging states, memories should accumulate
-    merged_memories = state1["memories"] + state2["memories"]
-    assert len(merged_memories) == 2
-
-
 # Mapping from PublicMemories field types to their expected Memory equivalents.
-# Memory uses broader unions (e.g. str | uuid.UUID) because values can come from
-# the DB (typed) or from search metadata (strings). This map defines what each
-# DB type should widen to in Memory.
 _DB_TO_MEMORY_TYPE: dict[type | object, type | object] = {
-    uuid.UUID: uuid.UUID,  # Memory.id is NotRequired but inner type must match
+    uuid.UUID: uuid.UUID,
     datetime.datetime: datetime.datetime,
     datetime.datetime | None: datetime.datetime | None,
     str | None: str | None,
-    Any | None: dict[str, Any],  # DB Json[Any] resolves to Optional[Any]
+    Any | None: dict[str, Any],
     int: int,
     float: float,
     str: str,
@@ -98,7 +42,6 @@ def test_memory_fields_match_public_memories_schema() -> None:
     memory_hints = get_type_hints(Memory, include_extras=True)
     db_fields = PublicMemories.model_fields
 
-    # Fields intentionally only in Memory (search-specific) or only in DB
     memory_only = {"similarity"}
     db_only = {"embedding"}
 
@@ -106,15 +49,12 @@ def test_memory_fields_match_public_memories_schema() -> None:
 
     assert shared_fields, "No shared fields found — check for renames in the DB schema"
 
-    # Resolve ForwardRefs from database_types (uses `from __future__ import annotations`).
-    # Pass the module globals so ForwardRefs like 'datetime.datetime' can resolve.
     db_hints = get_type_hints(PublicMemories, globalns=vars(_mod))
 
     for field_name in sorted(shared_fields):
         db_annotation = db_hints[field_name]
         mem_annotation = memory_hints[field_name]
 
-        # Unwrap NotRequired if present
         if get_origin(mem_annotation) is NotRequired:
             mem_annotation = get_args(mem_annotation)[0]
 
