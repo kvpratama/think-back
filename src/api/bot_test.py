@@ -11,15 +11,21 @@ from telegram import Update, User
 
 
 @pytest.fixture
-def mock_update() -> Update:
-    """Create a mock Telegram Update."""
+def mock_user() -> MagicMock:
+    """Create a mock Telegram User."""
     mock_user = MagicMock(spec=User)
     mock_user.id = 12345
+    return mock_user
 
+
+@pytest.fixture
+def mock_update(mock_user: MagicMock) -> Update:
+    """Create a mock Telegram Update."""
     mock_message = MagicMock()
     mock_message.from_user = mock_user
-    mock_message.text = "/save test memory"
+    mock_message.text = "I realized that motivation follows action"
     mock_message.reply_text = AsyncMock()
+    mock_message.chat.id = 67890
 
     mock_update = MagicMock(spec=Update)
     mock_update.message = mock_message
@@ -37,99 +43,34 @@ def mock_context() -> MagicMock:
     return context
 
 
-async def test_handle_message_save_command(
+async def test_handle_message_natural_language(
     mock_update: Update,
     mock_context: MagicMock,
 ) -> None:
-    """Test that handle_message processes save command."""
+    """Test that handle_message processes natural language input."""
     from src.api.bot import handle_message
 
     async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         yield {
             "event": "on_chain_end",
             "name": "LangGraph",
-            "data": {"output": {"response": "Memory saved."}},
+            "data": {"output": {"messages": [MagicMock(content="I've noted your insight.")]}},
         }
+
+    mock_state = MagicMock()
+    mock_state.next = []
+    mock_state.values = {"messages": [MagicMock(content="I've noted your insight.")]}
 
     mock_graph = MagicMock()
     mock_graph.astream_events = mock_astream
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
     with patch("src.api.bot._get_graph", return_value=mock_graph):
         await handle_message(mock_update, mock_context)
 
-        # Should call reply_text for "Thinking..." and then edit_message_text for the result
-        assert mock_update.effective_message is not None
-        assert cast(Any, mock_update.effective_message.reply_text).call_count == 1
+        assert mock_update.message is not None
+        cast(Any, mock_update.message.reply_text).assert_called_once()
         mock_context.bot.edit_message_text.assert_called()
-
-
-async def test_handle_message_ask_command(
-    mock_update: Update,
-    mock_context: MagicMock,
-) -> None:
-    """Test that handle_message processes ask command."""
-    from src.api.bot import handle_message
-
-    assert mock_update.effective_message is not None
-    cast(Any, mock_update.effective_message).text = "/ask What do I know about habits?"
-    assert mock_update.message is not None
-    cast(Any, mock_update.message).text = "/ask What do I know about habits?"
-
-    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
-        yield {
-            "event": "on_chat_model_stream",
-            "data": {"chunk": MagicMock(content="test ")},
-        }
-        yield {
-            "event": "on_chat_model_stream",
-            "data": {"chunk": MagicMock(content="memory")},
-        }
-        yield {
-            "event": "on_chain_end",
-            "name": "LangGraph",
-            "data": {"output": {"response": "From your saved memories: test memory"}},
-        }
-
-    mock_graph = MagicMock()
-    mock_graph.astream_events = mock_astream
-
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_message(mock_update, mock_context)
-
-        assert mock_update.effective_message is not None
-        assert cast(Any, mock_update.effective_message.reply_text).call_count == 1
-        mock_context.bot.edit_message_text.assert_called()
-
-
-async def test_handle_message_unknown_command(
-    mock_update: Update,
-    mock_context: MagicMock,
-) -> None:
-    """Test that handle_message handles unknown commands."""
-    from src.api.bot import handle_message
-
-    assert mock_update.effective_message is not None
-    cast(Any, mock_update.effective_message).text = "/unknown command"
-    assert mock_update.message is not None
-    cast(Any, mock_update.message).text = "/unknown command"
-
-    mock_graph = MagicMock()
-    mock_graph.ainvoke = AsyncMock(
-        return_value={
-            "user_input": "/unknown command",
-            "cleaned_input": "/unknown command",
-            "intent": None,
-            "memories": [],
-            "response": "Unknown command. Use /save to save knowledge or /ask to query.",
-            "error": "Unknown command.",
-        }
-    )
-
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_message(mock_update, mock_context)
-
-        assert mock_update.effective_message is not None
-        cast(Any, mock_update.effective_message.reply_text).assert_called_once()
 
 
 async def test_start_command(mock_update: Update, mock_context: MagicMock) -> None:
@@ -138,5 +79,121 @@ async def test_start_command(mock_update: Update, mock_context: MagicMock) -> No
 
     await start_command(mock_update, mock_context)
 
-    assert mock_update.effective_message is not None
-    cast(Any, mock_update.effective_message.reply_text).assert_called_once()
+    assert mock_update.message is not None
+    cast(Any, mock_update.message.reply_text).assert_called_once()
+
+
+async def test_create_application_registers_handlers() -> None:
+    """Test that create_application registers the expected handlers."""
+    from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
+
+    from src.api.bot import create_application
+
+    with patch("src.api.bot.get_settings") as mock_settings:
+        mock_settings.return_value = MagicMock()
+        mock_settings.return_value.telegram_bot_token.get_secret_value.return_value = "test-token"
+
+        app = create_application()
+
+        handler_types = [type(h) for group in app.handlers.values() for h in group]
+        assert CommandHandler in handler_types
+        assert MessageHandler in handler_types
+        assert CallbackQueryHandler in handler_types
+
+
+async def test_handle_message_interrupt_not_overwritten(
+    mock_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """Test that the finally block does not overwrite the save-confirmation UI."""
+    from src.api.bot import handle_message
+
+    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+        yield {
+            "event": "on_chat_model_stream",
+            "data": {"chunk": MagicMock(content="Let me save that")},
+        }
+
+    mock_interrupt = MagicMock()
+    mock_interrupt.value = {"insight": "Test insight", "content": "Test content"}
+
+    mock_task = MagicMock()
+    mock_task.interrupts = [mock_interrupt]
+
+    mock_state = MagicMock()
+    mock_state.next = ["some_node"]
+    mock_state.tasks = [mock_task]
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = mock_astream
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+
+    with patch("src.api.bot._get_graph", return_value=mock_graph):
+        await handle_message(mock_update, mock_context)
+
+        # The last edit_message_text call should be the confirmation UI, not the accumulated text.
+        last_call = mock_context.bot.edit_message_text.call_args
+        assert "Save this insight?" in last_call.kwargs.get("text", last_call[1].get("text", ""))
+
+
+@pytest.fixture
+def mock_callback_update(mock_user: MagicMock) -> Update:
+    """Create a mock Telegram Update with callback query."""
+    mock_query = MagicMock()
+    mock_query.data = "save_yes|67890_12345"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.from_user = mock_user
+
+    mock_update = MagicMock(spec=Update)
+    mock_update.callback_query = mock_query
+    mock_update.message = None
+
+    return mock_update
+
+
+async def test_handle_callback_approved(
+    mock_callback_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """Test that approved callback resumes graph and saves memory."""
+    from src.api.bot import handle_callback
+
+    mock_graph = MagicMock()
+    mock_result_msg = MagicMock()
+    mock_result_msg.content = "Memory saved: Motivation follows action"
+    mock_graph.ainvoke = AsyncMock(return_value={"messages": [mock_result_msg]})
+
+    with patch("src.api.bot._get_graph", return_value=mock_graph):
+        await handle_callback(mock_callback_update, mock_context)
+
+        mock_graph.ainvoke.assert_called_once()
+        call_args = mock_graph.ainvoke.call_args
+        command = call_args[0][0]
+        assert command.resume == {"approved": True}
+
+        assert mock_callback_update.callback_query is not None
+        cast(Any, mock_callback_update.callback_query.edit_message_text).assert_called_once()
+
+
+async def test_handle_callback_cancelled(
+    mock_callback_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """Test that cancelled callback resumes graph without saving."""
+    from src.api.bot import handle_callback
+
+    assert mock_callback_update.callback_query is not None
+    cast(Any, mock_callback_update.callback_query).data = "save_no|67890_12345"
+
+    mock_graph = MagicMock()
+    mock_result_msg = MagicMock()
+    mock_result_msg.content = "Save cancelled."
+    mock_graph.ainvoke = AsyncMock(return_value={"messages": [mock_result_msg]})
+
+    with patch("src.api.bot._get_graph", return_value=mock_graph):
+        await handle_callback(mock_callback_update, mock_context)
+
+        call_args = mock_graph.ainvoke.call_args
+        command = call_args[0][0]
+        assert command.resume == {"approved": False}

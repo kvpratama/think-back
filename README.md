@@ -67,12 +67,18 @@
 
 ## 📖 Usage
 
-Once the bot is running, you can interact with it on Telegram using the following commands:
+Once your bot is up and running, you can interact with it directly on Telegram—just type naturally as you would in any chat.
 
-- `/start`: Initialize the assistant and see available commands.
-- `/save <text>`: Save a piece of information to your long-term memory.
-- `/ask <question>`: Query your saved knowledge base.
-- `/query <question>`: Alternative for querying your knowledge.
+### What You Can Do
+
+* **💬 Start a conversation**
+  Say hello or chat casually with the assistant. It’s designed to understand natural language and respond conversationally.
+
+* **🧠 Save knowledge**
+  Share insights, notes, or lessons. The bot will recognize useful information and offer to store it in your long-term memory.
+
+* **❓ Ask questions**
+  Ask about topics you’ve discussed before. The bot can search your saved knowledge and bring up relevant information.
 
 ---
 
@@ -96,7 +102,7 @@ uv run ty check
 
 ## 📂 Project Structure
 
-- `src/agent/`: Core agent logic (graph assembly, nodes, state).
+- `src/agent/`: Core agent logic (graph assembly, tools, state).
 - `src/api/`: Bot interface and message handling.
 - `src/core/`: Application configuration and settings.
 - `src/db/`: Database and vector store clients.

@@ -1,16 +1,12 @@
-"""Agent state definition for LangGraph.
+"""State definitions for the ThinkBack agent.
 
-The AgentState is a TypedDict that represents the state of the agent
-throughout the graph execution. It inherits from MessagesState which
-uses a reducer for the messages list. Other list fields like memories
-are overwritten per query.
+Memory is a TypedDict used by the vector store and tools to represent
+memory records. The agent itself uses create_agent's built-in MessagesState.
 """
 
 import datetime
 import uuid
-from typing import Any, Literal, NotRequired, TypedDict
-
-from langgraph.graph import MessagesState
+from typing import Any, NotRequired, TypedDict
 
 
 class Memory(TypedDict):
@@ -30,27 +26,3 @@ class Memory(TypedDict):
     last_reviewed_at: NotRequired[datetime.datetime | None]
     review_count: NotRequired[int]
     test_score_avg: NotRequired[float]
-
-
-class AgentState(MessagesState):
-    """State of the ThinkBack agent.
-
-    This TypedDict defines the structure of the agent's state throughout
-    the LangGraph execution. Fields annotated with a reducer function
-    will accumulate values across graph steps.
-
-    Attributes:
-        user_input: The raw user input from Telegram (including command prefix).
-        cleaned_input: The user input with command prefix stripped.
-        intent: The detected intent ('save', 'query', or None).
-        memories: List of retrieved or saved memory records. Overwritten per query.
-        response: The final response to send to the user.
-        error: Any error message that occurred during processing.
-    """
-
-    user_input: str
-    cleaned_input: str
-    intent: Literal["save", "query"] | None
-    memories: list[Memory]
-    response: str
-    error: str | None
