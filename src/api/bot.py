@@ -29,7 +29,7 @@ from telegram.ext import (
     filters,
 )
 
-from src.api.bot_helpers import sanitize_for_telegram_html
+from src.api.bot_helpers import truncate_for_telegram
 from src.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -120,8 +120,9 @@ async def handle_message(
                         current_time - last_update_time > update_interval
                         and accumulated_response.strip()
                     ):
-                        display_text = sanitize_for_telegram_html(
-                            accumulated_response[:telegram_char_limit] + " ▌",
+                        display_text = truncate_for_telegram(
+                            accumulated_response + " ▌",
+                            max_len=telegram_char_limit,
                         )
                         try:
                             await context.bot.edit_message_text(
@@ -152,22 +153,23 @@ async def handle_message(
                 ]
             )
 
-            confirm_text = sanitize_for_telegram_html(
+            confirm_text = truncate_for_telegram(
                 f"💡 Save this insight?\n\n"
                 f"<blockquote>{insight}</blockquote>\n\n"
                 f'<i>Original: "{content}"</i>',
+                max_len=telegram_char_limit,
             )
             try:
                 await context.bot.edit_message_text(
                     chat_id=chat.id,
                     message_id=sent_message.message_id,
-                    text=confirm_text[:telegram_char_limit],
+                    text=confirm_text,
                     reply_markup=keyboard,
                     parse_mode=ParseMode.HTML,
                 )
             except TelegramError:
                 await update.message.reply_text(
-                    confirm_text[:telegram_char_limit],
+                    confirm_text,
                     reply_markup=keyboard,
                     parse_mode=ParseMode.HTML,
                 )
@@ -185,7 +187,10 @@ async def handle_message(
     finally:
         if final_response or accumulated_response:
             final_response = final_response or accumulated_response or "No response generated."
-            safe_response = sanitize_for_telegram_html(final_response[:telegram_char_limit])
+            safe_response = truncate_for_telegram(
+                final_response,
+                max_len=telegram_char_limit,
+            )
             try:
                 await context.bot.edit_message_text(
                     chat_id=chat.id,
@@ -243,7 +248,7 @@ async def handle_callback(
 
     try:
         await query.edit_message_text(
-            text=sanitize_for_telegram_html(response),
+            text=truncate_for_telegram(response),
             parse_mode=ParseMode.HTML,
         )
     except TelegramError:

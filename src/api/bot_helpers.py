@@ -133,3 +133,60 @@ def sanitize_for_telegram_html(text: str) -> str:
     text = re.sub(re.escape(placeholder), _restore_tag, text)
 
     return text
+
+
+# Self-closing / void tags that don't need a closing tag.
+_VOID_TAGS = frozenset({"br", "img", "hr", "input", "meta", "link"})
+
+# Tags that carry attributes (href, src, etc.) and need special handling.
+_ATTR_TAGS = frozenset({"a"})
+
+
+def truncate_for_telegram(text: str, max_len: int = 4000) -> str:
+    """Truncate text safely for Telegram's 4,096-character message limit.
+
+    This function:
+    1. First sanitizes the text via :func:`sanitize_for_telegram_html`.
+    2. If the sanitized text exceeds ``max_len``, truncates at a safe boundary
+       (not mid-tag, not mid-entity).
+    3. Closes any unclosed HTML tags at the truncation point.
+    4. Appends ``…`` to signal truncation.
+
+    Args:
+        text: The raw text to truncate.
+        max_len: Maximum character count (default 4000, Telegram limit is 4096).
+
+    Returns:
+        A sanitized, safely truncated string ready for Telegram HTML.
+    """
+    sanitized = sanitize_for_telegram_html(text)
+
+    if len(sanitized) <= max_len:
+        return sanitized
+
+    # Reserve 1 char for the ellipsis.
+    limit = max_len - 1
+
+    # Walk back from the cut point to avoid slicing mid-tag.
+    cut = limit
+    while cut > 0 and "<" in (sanitized[cut - 3 : cut + 1]):
+        cut -= 1
+
+    truncated = sanitized[:cut].rstrip()
+
+    # Find and close any unclosed tags.
+    open_tags: list[str] = []
+    for match in re.finditer(r"<(/?)(\w+)(?:\s[^>]*)?>", truncated):
+        tag_name = match.group(2).lower()
+        if tag_name in _VOID_TAGS:
+            continue
+        if match.group(1) == "/":
+            # Closing tag — pop if it matches the most recent open.
+            if open_tags and open_tags[-1] == tag_name:
+                open_tags.pop()
+        else:
+            open_tags.append(tag_name)
+
+    # Close remaining tags in reverse order.
+    closing = "".join(f"</{tag}>" for tag in reversed(open_tags))
+    return truncated + closing + "…"

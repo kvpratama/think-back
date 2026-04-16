@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.api.bot_helpers import sanitize_for_telegram_html
+from src.api.bot_helpers import sanitize_for_telegram_html, truncate_for_telegram
 
 
 class TestSanitizeForTelegramHtml:
@@ -138,3 +138,62 @@ class TestSanitizeForTelegramHtml:
         result = sanitize_for_telegram_html(html)
         assert "• Item" in result
         assert "<ul" not in result
+
+
+class TestTruncateForTelegram:
+    """Tests for the truncate_for_telegram function."""
+
+    def test_short_text_unchanged(self) -> None:
+        """Text under the limit should pass through unchanged."""
+        assert truncate_for_telegram("Hello") == "Hello"
+
+    def test_long_text_truncated(self) -> None:
+        """Text over the limit should be truncated with ellipsis."""
+        text = "A" * 5000
+        result = truncate_for_telegram(text, max_len=100)
+        assert len(result) <= 100
+        assert result.endswith("…")
+
+    def test_closes_unclosed_bold(self) -> None:
+        """Unclosed <b> should be closed at truncation point."""
+        text = "<b>Bold text that is very long " + "x" * 200
+        result = truncate_for_telegram(text, max_len=50)
+        assert result.count("<b>") == 1
+        assert result.count("</b>") == 1
+        assert result.endswith("</b>…")
+
+    def test_closes_nested_tags(self) -> None:
+        """Nested unclosed tags should all be closed."""
+        text = "<b><i>Text " + "x" * 200
+        result = truncate_for_telegram(text, max_len=30)
+        # Should close </i> then </b>
+        assert result.endswith("</i></b>…")
+
+    def test_no_extra_close_for_matched_tags(self) -> None:
+        """Already-closed tags should not get duplicate closing tags."""
+        text = "<b>Done</b> " + "extra " * 50
+        result = truncate_for_telegram(text, max_len=30)
+        # Should not add extra </b> since it's already closed
+        assert result.count("</b>") == 1
+        assert result.endswith("…")
+
+    def test_sanitization_applied_first(self) -> None:
+        """Truncation should sanitize first (e.g. convert <ul> to bullets)."""
+        text = "<ul><li>" + "item " * 100 + "</li></ul>"
+        result = truncate_for_telegram(text, max_len=50)
+        assert "<ul>" not in result
+        assert "• item" in result
+
+    def test_exact_limit(self) -> None:
+        """Text exactly at the limit should not be truncated."""
+        text = "A" * 100
+        result = truncate_for_telegram(text, max_len=100)
+        assert result == text
+        assert "…" not in result
+
+    def test_one_over_limit(self) -> None:
+        """Text one char over the limit should be truncated."""
+        text = "A" * 101
+        result = truncate_for_telegram(text, max_len=100)
+        assert len(result) <= 100
+        assert result.endswith("…")
