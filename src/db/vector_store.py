@@ -134,3 +134,51 @@ async def search_memories(
         [r.get("similarity") for r in results],
     )
     return results
+
+
+async def find_duplicates(content: str) -> list[dict[str, object]]:
+    """Check for duplicate memories by exact text match and semantic similarity.
+
+    Performs two checks:
+    1. Exact text match via Supabase query (no embedding cost).
+    2. Semantic similarity search with a 0.85 threshold (top 3).
+
+    Results are deduplicated — an exact match that also appears in the
+    semantic results is only returned once (as "exact").
+
+    Args:
+        content: The memory content to check for duplicates.
+
+    Returns:
+        A list of duplicate records, each containing 'content',
+        'similarity', and 'match_type' ("exact" or "semantic").
+    """
+    client = get_supabase_client()
+
+    # Step 1: Exact text match
+    exact_response = client.table("memories").select("id, content").eq("content", content).execute()
+    exact_contents: set[str] = set()
+    results: list[dict[str, object]] = []
+    for row in exact_response.data:
+        exact_contents.add(row["content"])
+        results.append(
+            {
+                "content": row["content"],
+                "similarity": 1.0,
+                "match_type": "exact",
+            }
+        )
+
+    # Step 2: Semantic similarity search
+    semantic_matches = await search_memories(content, top_k=3, threshold=0.85)
+    for match in semantic_matches:
+        if match["content"] not in exact_contents:
+            results.append(
+                {
+                    "content": match["content"],
+                    "similarity": match.get("similarity", 0.0),
+                    "match_type": "semantic",
+                }
+            )
+
+    return results

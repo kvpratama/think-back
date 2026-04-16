@@ -144,6 +144,7 @@ async def handle_message(
             interrupt_value = state.tasks[0].interrupts[0].value
             insight = interrupt_value.get("insight", "")
             content = interrupt_value.get("content", "")
+            duplicates = interrupt_value.get("duplicates", [])
 
             keyboard = InlineKeyboardMarkup(
                 [
@@ -154,10 +155,20 @@ async def handle_message(
                 ]
             )
 
-            confirm_text = truncate_for_telegram(
+            confirm_parts = [
                 f"💡 Save this insight?\n\n"
                 f"<blockquote>{insight}</blockquote>\n\n"
                 f'<i>Original: "{content}"</i>',
+            ]
+
+            if duplicates:
+                confirm_parts.append("\n\n⚠️ <b>Similar memories found:</b>")
+                for dup in duplicates:
+                    label = "exact" if dup["match_type"] == "exact" else "similar"
+                    confirm_parts.append(f"• [{label}] {dup['content']}")
+
+            confirm_text = truncate_for_telegram(
+                "\n".join(confirm_parts),
                 max_len=telegram_char_limit,
             )
             try:

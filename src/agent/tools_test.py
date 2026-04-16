@@ -37,50 +37,126 @@ async def test_search_memories_tool_handles_no_results() -> None:
 
 
 async def test_save_memory_tool_calls_interrupt() -> None:
-    """Test that save_memory_tool calls interrupt with content and insight."""
+    """Test that save_memory_tool calls interrupt with content, insight, and duplicates."""
     from src.agent.tools import save_memory_tool
 
-    with patch("src.agent.tools.interrupt") as mock_interrupt:
-        mock_interrupt.return_value = {"approved": True}
+    with patch("src.agent.tools.db_find_duplicates") as mock_find:
+        mock_find.return_value = []
 
-        with patch("src.agent.tools.db_save_memory") as mock_save:
-            mock_save.return_value = {
-                "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
-                "content": "I realized that motivation follows action",
-            }
+        with patch("src.agent.tools.interrupt") as mock_interrupt:
+            mock_interrupt.return_value = {"approved": True}
 
-            input_dict: Any = {
-                "content": "I realized that motivation follows action",
-                "insight": "Motivation follows action",
-            }
-            result = await save_memory_tool.ainvoke(input_dict)
+            with patch("src.agent.tools.db_save_memory") as mock_save:
+                mock_save.return_value = {
+                    "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
+                    "content": "I realized that motivation follows action",
+                }
 
-            mock_interrupt.assert_called_once_with(
-                {
+                input_dict: Any = {
                     "content": "I realized that motivation follows action",
                     "insight": "Motivation follows action",
                 }
-            )
-            mock_save.assert_called_once_with(
-                "I realized that motivation follows action",
-                summary="Motivation follows action",
-            )
-            assert "saved" in result.lower()
+                result = await save_memory_tool.ainvoke(input_dict)
+
+                mock_interrupt.assert_called_once_with(
+                    {
+                        "content": "I realized that motivation follows action",
+                        "insight": "Motivation follows action",
+                        "duplicates": [],
+                    }
+                )
+                mock_save.assert_called_once_with(
+                    "I realized that motivation follows action",
+                    summary="Motivation follows action",
+                )
+                assert "saved" in result.lower()
 
 
 async def test_save_memory_tool_cancelled() -> None:
     """Test that save_memory_tool handles user rejection."""
     from src.agent.tools import save_memory_tool
 
-    with patch("src.agent.tools.interrupt") as mock_interrupt:
-        mock_interrupt.return_value = {"approved": False}
+    with patch("src.agent.tools.db_find_duplicates") as mock_find:
+        mock_find.return_value = []
 
-        with patch("src.agent.tools.db_save_memory") as mock_save:
-            input_dict: Any = {
-                "content": "Some thought",
-                "insight": "A thought",
-            }
-            result = await save_memory_tool.ainvoke(input_dict)
+        with patch("src.agent.tools.interrupt") as mock_interrupt:
+            mock_interrupt.return_value = {"approved": False}
 
-            mock_save.assert_not_called()
-            assert "cancel" in result.lower()
+            with patch("src.agent.tools.db_save_memory") as mock_save:
+                input_dict: Any = {
+                    "content": "Some thought",
+                    "insight": "A thought",
+                }
+                result = await save_memory_tool.ainvoke(input_dict)
+
+                mock_save.assert_not_called()
+                assert "cancel" in result.lower()
+
+
+async def test_save_memory_tool_surfaces_duplicates_in_interrupt() -> None:
+    """Test that save_memory_tool includes duplicates in the interrupt payload."""
+    from src.agent.tools import save_memory_tool
+
+    duplicates = [
+        {"content": "Exercise is good", "similarity": 1.0, "match_type": "exact"},
+    ]
+
+    with patch("src.agent.tools.db_find_duplicates") as mock_find:
+        mock_find.return_value = duplicates
+
+        with patch("src.agent.tools.interrupt") as mock_interrupt:
+            mock_interrupt.return_value = {"approved": True}
+
+            with patch("src.agent.tools.db_save_memory") as mock_save:
+                mock_save.return_value = {
+                    "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
+                    "content": "Exercise is good",
+                }
+
+                input_dict: Any = {
+                    "content": "Exercise is good",
+                    "insight": "Exercise matters",
+                }
+                result = await save_memory_tool.ainvoke(input_dict)
+
+                mock_find.assert_called_once_with("Exercise is good")
+                mock_interrupt.assert_called_once_with(
+                    {
+                        "content": "Exercise is good",
+                        "insight": "Exercise matters",
+                        "duplicates": duplicates,
+                    }
+                )
+                assert "saved" in result.lower()
+
+
+async def test_save_memory_tool_sends_empty_duplicates_when_none_found() -> None:
+    """Test that save_memory_tool sends empty duplicates list when no matches."""
+    from src.agent.tools import save_memory_tool
+
+    with patch("src.agent.tools.db_find_duplicates") as mock_find:
+        mock_find.return_value = []
+
+        with patch("src.agent.tools.interrupt") as mock_interrupt:
+            mock_interrupt.return_value = {"approved": True}
+
+            with patch("src.agent.tools.db_save_memory") as mock_save:
+                mock_save.return_value = {
+                    "id": uuid.UUID("00000000-0000-0000-0000-000000000002"),
+                    "content": "Brand new insight",
+                }
+
+                input_dict: Any = {
+                    "content": "Brand new insight",
+                    "insight": "Something new",
+                }
+                result = await save_memory_tool.ainvoke(input_dict)
+
+                mock_interrupt.assert_called_once_with(
+                    {
+                        "content": "Brand new insight",
+                        "insight": "Something new",
+                        "duplicates": [],
+                    }
+                )
+                assert "saved" in result.lower()
