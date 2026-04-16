@@ -6,6 +6,7 @@ and reflective questions. Designed to run as a cron job.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 from datetime import UTC, datetime
@@ -59,7 +60,16 @@ def get_due_users(now: datetime | None = None) -> list[str]:
 
     due_users: list[str] = []
     for row in response.data:
-        user_tz = ZoneInfo(row["timezone"])
+        try:
+            user_tz = ZoneInfo(row["timezone"])
+        except Exception:
+            logger.warning(
+                "Invalid timezone '%s' for user %s, skipping",
+                row["timezone"],
+                row["telegram_chat_id"],
+            )
+            continue
+
         user_now = now.astimezone(user_tz)
         current_hour = user_now.hour
 
@@ -212,16 +222,23 @@ async def send_reminder(
         insight: The AI-generated insight.
         question: The AI-generated reflective question.
     """
+    from src.api.bot_helpers import sanitize_for_telegram_html
     from src.core.config import get_settings
 
     settings = get_settings()
     bot = Bot(token=settings.telegram_bot_token.get_secret_value())
 
-    parts = [f"📖 <blockquote>{content}</blockquote>"]
-    if source:
-        parts.append(f"— {source}")
-    parts.append(f"\n💡 <b>Insight:</b> {insight}")
-    parts.append(f"\n❓ <b>Reflect:</b> {question}")
+    # Sanitize all user/LLM-generated content to prevent HTML injection
+    safe_content = sanitize_for_telegram_html(content)
+    safe_source = sanitize_for_telegram_html(source) if source else None
+    safe_insight = sanitize_for_telegram_html(insight)
+    safe_question = sanitize_for_telegram_html(question)
+
+    parts = [f"📖 <blockquote>{safe_content}</blockquote>"]
+    if safe_source:
+        parts.append(f"— {safe_source}")
+    parts.append(f"\n💡 <b>Insight:</b> {safe_insight}")
+    parts.append(f"\n❓ <b>Reflect:</b> {safe_question}")
 
     text = "\n".join(parts)
 
@@ -256,12 +273,12 @@ async def main() -> None:
     Orchestrates the full flow: find due users, select a memory,
     generate an insight, send via Telegram, and update the memory.
     """
-    due_users = get_due_users()
+    due_users = await asyncio.to_thread(get_due_users)
     if not due_users:
         logger.info("No users due for a reminder at this hour.")
         return
 
-    memory = select_memory()
+    memory = await asyncio.to_thread(select_memory)
 
     content = memory["content"]
     source = memory.get("source")
@@ -284,7 +301,7 @@ async def main() -> None:
             question=insight_resp.question,
         )
 
-    update_memory(memory_id=memory_id, review_count=review_count)
+    await asyncio.to_thread(update_memory, memory_id=memory_id, review_count=review_count)
     logger.info("Reminder sent for memory %s to %d user(s).", memory_id, len(due_users))
 
 

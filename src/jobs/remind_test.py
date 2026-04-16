@@ -257,7 +257,19 @@ class TestSendReminder:
         mock_bot.send_message = AsyncMock()
         mock_bot_class.return_value = mock_bot
 
-        with patch("src.jobs.remind.Bot", mock_bot_class):
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "SUPABASE_URL": "https://test.supabase.co",
+                    "SUPABASE_KEY": "test-key",
+                    "TELEGRAM_BOT_TOKEN": "test-token",
+                    "OPENAI_API_KEY": "test-key",
+                    "GEMINI_API_KEY": "test-key",
+                },
+            ),
+            patch("src.jobs.remind.Bot", mock_bot_class),
+        ):
             from src.jobs.remind import send_reminder
 
             await send_reminder(
@@ -283,7 +295,19 @@ class TestSendReminder:
         mock_bot.send_message = AsyncMock()
         mock_bot_class.return_value = mock_bot
 
-        with patch("src.jobs.remind.Bot", mock_bot_class):
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "SUPABASE_URL": "https://test.supabase.co",
+                    "SUPABASE_KEY": "test-key",
+                    "TELEGRAM_BOT_TOKEN": "test-token",
+                    "OPENAI_API_KEY": "test-key",
+                    "GEMINI_API_KEY": "test-key",
+                },
+            ),
+            patch("src.jobs.remind.Bot", mock_bot_class),
+        ):
             from src.jobs.remind import send_reminder
 
             await send_reminder(

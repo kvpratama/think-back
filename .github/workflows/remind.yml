@@ -11,6 +11,9 @@ permissions:
 jobs:
   remind:
     runs-on: ubuntu-latest
+    concurrency:
+      group: remind
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
 
