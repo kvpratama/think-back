@@ -1,4 +1,12 @@
 repos:
+
+# Prevent commits directly to main
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0  # Use the latest version
+  hooks:
+    - id: no-commit-to-branch
+      args: [--branch, main]
+
 # Make sure uv.lock file is up to date 
 - repo: https://github.com/astral-sh/uv-pre-commit
   # uv version.
