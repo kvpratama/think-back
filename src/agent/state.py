@@ -6,7 +6,7 @@ memory records. The agent itself uses create_agent's built-in MessagesState.
 
 import datetime
 import uuid
-from typing import Any, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 
 class Memory(TypedDict):
@@ -26,3 +26,14 @@ class Memory(TypedDict):
     last_reviewed_at: NotRequired[datetime.datetime | None]
     review_count: NotRequired[int]
     test_score_avg: NotRequired[float]
+
+
+class DuplicateMatch(TypedDict):
+    """A duplicate memory match returned by find_duplicates.
+
+    Represents either an exact text match or a semantic similarity match.
+    """
+
+    content: str
+    similarity: float
+    match_type: Literal["exact", "semantic"]

@@ -2,7 +2,7 @@ repos:
 
 # Prevent commits directly to main
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v5.0.0  # Use the latest version
+  rev: v6.0.0
   hooks:
     - id: no-commit-to-branch
       args: [--branch, main]
@@ -10,7 +10,7 @@ repos:
 # Make sure uv.lock file is up to date 
 - repo: https://github.com/astral-sh/uv-pre-commit
   # uv version.
-  rev: 0.11.0
+  rev: 0.11.7
   hooks:
     # Update the uv lockfile
     - id: uv-lock
@@ -18,7 +18,7 @@ repos:
 # Ruff Hooks (Format & Check)
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
-  rev: v0.15.7
+  rev: v0.15.10
   hooks:
     # Run the linter.
     - id: ruff-check

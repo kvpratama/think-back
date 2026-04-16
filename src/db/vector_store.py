@@ -17,7 +17,7 @@ from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-from src.agent.state import Memory
+from src.agent.state import DuplicateMatch, Memory
 from src.db.client import get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ async def search_memories(
     return results
 
 
-async def find_duplicates(content: str) -> list[dict[str, object]]:
+async def find_duplicates(content: str) -> list[DuplicateMatch]:
     """Check for duplicate memories by exact text match and semantic similarity.
 
     Performs two checks:
@@ -155,10 +155,12 @@ async def find_duplicates(content: str) -> list[dict[str, object]]:
     """
     client = get_supabase_client()
 
-    # Step 1: Exact text match
-    exact_response = client.table("memories").select("id, content").eq("content", content).execute()
+    # Step 1: Exact text match (wrap sync client call to avoid blocking the event loop)
+    exact_response = await asyncio.to_thread(
+        client.table("memories").select("id, content").eq("content", content).execute
+    )
     exact_contents: set[str] = set()
-    results: list[dict[str, object]] = []
+    results: list[DuplicateMatch] = []
     for row in exact_response.data:
         exact_contents.add(row["content"])
         results.append(
