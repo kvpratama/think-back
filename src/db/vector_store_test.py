@@ -120,3 +120,139 @@ async def test_search_memories_uses_query_directly(
                 mock_vector_store.similarity_search_with_relevance_scores.assert_called_once_with(
                     "What are my habits?", k=3
                 )
+
+
+async def test_find_duplicates_returns_exact_match(
+    mock_settings: MagicMock,
+) -> None:
+    """Test that find_duplicates detects an exact content match."""
+    from src.db.vector_store import _get_embeddings, _get_vector_store, find_duplicates
+
+    mock_client = MagicMock()
+    # Simulate Supabase .table().select().eq().execute() returning one row
+    mock_execute = MagicMock()
+    mock_execute.data = [
+        {"id": "00000000-0000-0000-0000-000000000001", "content": "Exercise is good"}
+    ]
+    mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+
+    mock_vector_store = MagicMock()
+    # No semantic matches (exact match only)
+    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(return_value=[])
+
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
+        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
+            with patch("src.core.config.get_settings", return_value=mock_settings):
+                _get_embeddings.cache_clear()
+                _get_vector_store.cache_clear()
+
+                result = await find_duplicates("Exercise is good")
+
+                assert len(result) == 1
+                assert result[0]["content"] == "Exercise is good"
+                assert result[0]["match_type"] == "exact"
+                assert result[0]["similarity"] == 1.0
+
+
+async def test_find_duplicates_returns_empty_when_no_matches(
+    mock_settings: MagicMock,
+) -> None:
+    """Test that find_duplicates returns empty list when no duplicates exist."""
+    from src.db.vector_store import _get_embeddings, _get_vector_store, find_duplicates
+
+    mock_client = MagicMock()
+    mock_execute = MagicMock()
+    mock_execute.data = []
+    mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(return_value=[])
+
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
+        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
+            with patch("src.core.config.get_settings", return_value=mock_settings):
+                _get_embeddings.cache_clear()
+                _get_vector_store.cache_clear()
+
+                result = await find_duplicates("Something totally new")
+
+                assert result == []
+
+
+async def test_find_duplicates_returns_semantic_matches(
+    mock_settings: MagicMock,
+) -> None:
+    """Test that find_duplicates returns semantic matches above 0.85 threshold."""
+    from src.db.vector_store import _get_embeddings, _get_vector_store, find_duplicates
+
+    mock_client = MagicMock()
+    mock_execute = MagicMock()
+    mock_execute.data = []  # No exact match
+    mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(
+        return_value=[
+            (MagicMock(page_content="Working out is key to staying healthy", metadata={}), 0.91),
+        ]
+    )
+
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
+        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
+            with patch("src.core.config.get_settings", return_value=mock_settings):
+                _get_embeddings.cache_clear()
+                _get_vector_store.cache_clear()
+
+                result = await find_duplicates("Exercise is good for health")
+
+                assert len(result) == 1
+                assert result[0]["content"] == "Working out is key to staying healthy"
+                assert result[0]["match_type"] == "semantic"
+                assert result[0]["similarity"] == 0.91
+
+
+async def test_find_duplicates_deduplicates_exact_and_semantic_overlap(
+    mock_settings: MagicMock,
+) -> None:
+    """Test exact+semantic overlap is deduplicated, returning only once as 'exact'."""
+    from src.db.vector_store import _get_embeddings, _get_vector_store, find_duplicates
+
+    mock_client = MagicMock()
+    mock_execute = MagicMock()
+    mock_execute.data = [
+        {"id": "00000000-0000-0000-0000-000000000001", "content": "Exercise is good"}
+    ]
+    mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+
+    mock_vector_store = MagicMock()
+    # Same content also shows up as a semantic match
+    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(
+        return_value=[
+            (MagicMock(page_content="Exercise is good", metadata={}), 0.99),
+            (MagicMock(page_content="Working out is healthy", metadata={}), 0.88),
+        ]
+    )
+
+    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
+        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
+            with patch("src.core.config.get_settings", return_value=mock_settings):
+                _get_embeddings.cache_clear()
+                _get_vector_store.cache_clear()
+
+                result = await find_duplicates("Exercise is good")
+
+                assert len(result) == 2
+                # First result is the exact match (not duplicated)
+                exact_results = [r for r in result if r["match_type"] == "exact"]
+                semantic_results = [r for r in result if r["match_type"] == "semantic"]
+                assert len(exact_results) == 1
+                assert len(semantic_results) == 1
+                assert semantic_results[0]["content"] == "Working out is healthy"

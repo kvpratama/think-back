@@ -197,3 +197,91 @@ async def test_handle_callback_cancelled(
         call_args = mock_graph.ainvoke.call_args
         command = call_args[0][0]
         assert command.resume == {"approved": False}
+
+
+async def test_handle_message_interrupt_shows_duplicates(
+    mock_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """Test that the save confirmation UI surfaces duplicate memories."""
+    from src.api.bot import handle_message
+
+    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+        yield {
+            "event": "on_chat_model_stream",
+            "data": {"chunk": MagicMock(content="Let me save that")},
+        }
+
+    mock_interrupt = MagicMock()
+    mock_interrupt.value = {
+        "insight": "Exercise matters",
+        "content": "Exercise is good",
+        "duplicates": [
+            {"content": "Exercise is good", "similarity": 1.0, "match_type": "exact"},
+            {
+                "content": "Working out is healthy",
+                "similarity": 0.91,
+                "match_type": "semantic",
+            },
+        ],
+    }
+
+    mock_task = MagicMock()
+    mock_task.interrupts = [mock_interrupt]
+
+    mock_state = MagicMock()
+    mock_state.next = ["some_node"]
+    mock_state.tasks = [mock_task]
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = mock_astream
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+
+    with patch("src.api.bot._get_graph", return_value=mock_graph):
+        await handle_message(mock_update, mock_context)
+
+        last_call = mock_context.bot.edit_message_text.call_args
+        text = last_call.kwargs.get("text", last_call[1].get("text", ""))
+        assert "Exercise is good" in text
+        assert "Working out is healthy" in text
+        assert "Similar" in text or "Duplicate" in text or "duplicate" in text
+
+
+async def test_handle_message_interrupt_no_duplicates(
+    mock_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """Test that the save confirmation UI works when no duplicates are found."""
+    from src.api.bot import handle_message
+
+    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+        yield {
+            "event": "on_chat_model_stream",
+            "data": {"chunk": MagicMock(content="Let me save that")},
+        }
+
+    mock_interrupt = MagicMock()
+    mock_interrupt.value = {
+        "insight": "Brand new insight",
+        "content": "Something new",
+        "duplicates": [],
+    }
+
+    mock_task = MagicMock()
+    mock_task.interrupts = [mock_interrupt]
+
+    mock_state = MagicMock()
+    mock_state.next = ["some_node"]
+    mock_state.tasks = [mock_task]
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = mock_astream
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+
+    with patch("src.api.bot._get_graph", return_value=mock_graph):
+        await handle_message(mock_update, mock_context)
+
+        last_call = mock_context.bot.edit_message_text.call_args
+        text = last_call.kwargs.get("text", last_call[1].get("text", ""))
+        assert "Save this insight?" in text
+        assert "duplicate" not in text.lower()

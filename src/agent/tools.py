@@ -9,6 +9,7 @@ from __future__ import annotations
 from langchain_core.tools import tool
 from langgraph.types import interrupt
 
+from src.db.vector_store import find_duplicates as db_find_duplicates
 from src.db.vector_store import save_memory as db_save_memory
 from src.db.vector_store import search_memories as db_search_memories
 
@@ -50,10 +51,12 @@ async def save_memory_tool(content: str = "", insight: str = "") -> str:
     if not content or not insight:
         return "Please provide both content and insight."
 
-    confirmation = interrupt({"content": content, "insight": insight})
+    duplicates = await db_find_duplicates(content)
+
+    confirmation = interrupt({"content": content, "insight": insight, "duplicates": duplicates})
 
     if not confirmation.get("approved", False):
-        return "Save cancelled."
+        return "Save cancelled by user."
 
     await db_save_memory(content, summary=insight)
     return f"Memory saved: {insight}"
