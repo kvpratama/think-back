@@ -19,7 +19,7 @@ create table if not exists public.memories (
 
   -- pgvector column — 768 dims matches gemini-embedding-001
   -- Must match embedding model; changing model requires re-embedding all rows
-  embedding       vector(768) not null,
+  embedding       extensions.vector(768) not null,
 
   -- Skill ref: schema-data-types — always use timestamptz (timezone-aware)
   created_at      timestamptz not null default now(),
@@ -78,7 +78,7 @@ alter table public.memory_tags enable row level security;
 -- m=16, ef_construction=64 are safe defaults for a personal-scale collection
 create index if not exists memories_embedding_hnsw_idx
   on public.memories
-  using hnsw (embedding vector_cosine_ops)
+  using hnsw (embedding extensions.vector_cosine_ops)
   with (m = 16, ef_construction = 64);
 
 -- B-tree on last_reviewed_at for surfacing score queries
