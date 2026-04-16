@@ -97,7 +97,7 @@ def sanitize_for_telegram_html(text: str) -> str:
 
     # --- Strip remaining unsupported tags (preserve content) ---
     def _strip_or_keep(match: re.Match[str]) -> str:
-        tag_match = re.match(r"<\s*/?\s*(\w+)", match.group(0))
+        tag_match = re.match(r"<\s*/?\s*([\w-]+)", match.group(0))
         if tag_match and tag_match.group(1).lower() in SUPPORTED_TAGS:
             return match.group(0)  # keep supported tags as-is
         # For unsupported tags, return empty string (strip the tag)
@@ -176,7 +176,7 @@ def truncate_for_telegram(text: str, max_len: int = 4000) -> str:
 
     # Find and close any unclosed tags.
     open_tags: list[str] = []
-    for match in re.finditer(r"<(/?)(\w+)(?:\s[^>]*)?>", truncated):
+    for match in re.finditer(r"<(/?)([\w-]+)(?:\s[^>]*)?>", truncated):
         tag_name = match.group(2).lower()
         if tag_name in _VOID_TAGS:
             continue

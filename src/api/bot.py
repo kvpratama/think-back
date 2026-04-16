@@ -100,6 +100,7 @@ async def handle_message(
 
     accumulated_response = ""
     final_response = ""
+    handled_interrupt = False
     last_update_time = time.monotonic()
     update_interval = 1.0
     telegram_char_limit = 4000
@@ -173,6 +174,7 @@ async def handle_message(
                     reply_markup=keyboard,
                     parse_mode=ParseMode.HTML,
                 )
+            handled_interrupt = True
             return
 
         # No interrupt — send final response
@@ -185,7 +187,7 @@ async def handle_message(
         logger.exception("Error processing message in chat %s", chat.id)
         final_response = accumulated_response or "Sorry, something went wrong. Please try again."
     finally:
-        if final_response or accumulated_response:
+        if not handled_interrupt and (final_response or accumulated_response):
             final_response = final_response or accumulated_response or "No response generated."
             safe_response = truncate_for_telegram(
                 final_response,
