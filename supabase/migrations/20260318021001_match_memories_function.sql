@@ -20,7 +20,7 @@
 -- The similarity score is: 1 - cosine_distance (higher = more similar)
 
 create or replace function match_memories (
-  query_embedding  vector(768),
+  query_embedding  extensions.vector(768),
   filter           jsonb    default '{}',
   match_count      int      default 5
 )
