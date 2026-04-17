@@ -134,10 +134,15 @@ def add_reminder(user_settings_id: str, time_str: str) -> bool:
     if len(existing.data) >= MAX_REMINDERS:
         return False
 
-    client.table("reminder_times").insert(
-        {"user_settings_id": user_settings_id, "time": time_str}
-    ).execute()
-    return True
+    result = (
+        client.table("reminder_times")
+        .upsert(
+            {"user_settings_id": user_settings_id, "time": time_str},
+            on_conflict="user_settings_id,time",
+        )
+        .execute()
+    )
+    return len(result.data) > 0
 
 
 def remove_reminder(reminder_id: str) -> None:

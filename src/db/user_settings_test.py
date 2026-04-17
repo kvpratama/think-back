@@ -161,7 +161,7 @@ class TestAddReminder:
             {"id": "r1"},
             {"id": "r2"},
         ]
-        mock_supabase.table.return_value.insert.return_value.execute.return_value.data = [
+        mock_supabase.table.return_value.upsert.return_value.execute.return_value.data = [
             {"id": "r3", "user_settings_id": "aaa", "time": "14:00:00"},
         ]
 
@@ -183,6 +183,23 @@ class TestAddReminder:
 
         assert result is False
         mock_supabase.table.return_value.insert.assert_not_called()
+
+    def test_handles_duplicate_time_idempotently(self, mock_supabase: MagicMock) -> None:
+        chain = mock_supabase.table.return_value.select.return_value.eq.return_value
+        chain.execute.return_value.data = [{"id": "r1"}]
+        mock_supabase.table.return_value.upsert.return_value.execute.return_value.data = [
+            {"id": "r1", "user_settings_id": "aaa", "time": "12:00:00"},
+        ]
+
+        with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
+            from src.db.user_settings import add_reminder
+
+            result = add_reminder("aaa", "12:00")
+
+        assert result is True
+        mock_supabase.table.return_value.upsert.assert_called_once_with(
+            {"user_settings_id": "aaa", "time": "12:00"}, on_conflict="user_settings_id,time"
+        )
 
 
 class TestRemoveReminder:
