@@ -24,27 +24,6 @@ create policy "deny anon access to memories"
   to anon
   using (false);
 
--- tags
-create policy "deny anon access to tags"
-  on public.tags
-  for all
-  to anon
-  using (false);
-
--- memory_tags
-create policy "deny anon access to memory_tags"
-  on public.memory_tags
-  for all
-  to anon
-  using (false);
-
--- test_sessions
-create policy "deny anon access to test_sessions"
-  on public.test_sessions
-  for all
-  to anon
-  using (false);
-
 -- user_settings
 create policy "deny anon access to user_settings"
   on public.user_settings
