@@ -5,18 +5,11 @@ This module handles the Telegram bot commands and message routing.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from langchain_core.runnables import RunnableConfig
-
-if TYPE_CHECKING:
-    from langgraph.graph.state import CompiledStateGraph
-
 import logging
 import time
 
 from dotenv import load_dotenv
-from langgraph.checkpoint.memory import InMemorySaver
+from langchain_core.runnables import RunnableConfig
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
@@ -36,31 +29,13 @@ from src.api.bot_commands import (
     start_command,
     timezone_command,
 )
+from src.api.bot_graph import _get_graph
 from src.api.bot_helpers import truncate_for_telegram
 from src.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-
-
-def _get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
-    """Lazily build and cache the agent graph in bot_data.
-
-    Args:
-        context: The Telegram context whose bot_data stores the graph.
-
-    Returns:
-        Compiled LangGraph instance.
-    """
-    if "graph" not in context.bot_data:
-        from src.agent.graph import build_graph
-
-        context.bot_data["saver"] = InMemorySaver()
-        context.bot_data["graph"] = build_graph(
-            checkpointer=context.bot_data["saver"],
-        )
-    return context.bot_data["graph"]
 
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -71,6 +46,7 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context: The Telegram context.
     """
     if not update.message or not update.message.from_user:
+        logger.debug("unknown_command invoked without message/from_user; skipping")
         return
 
     await update.message.reply_text("Unknown command. Use /help to see available commands.")
@@ -87,6 +63,7 @@ async def handle_message(
         context: The Telegram context.
     """
     if not update.message or not update.message.from_user:
+        logger.debug("handle_message invoked without message/from_user; skipping")
         return
 
     user_input = update.message.text

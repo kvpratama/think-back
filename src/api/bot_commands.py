@@ -5,6 +5,8 @@ This module defines the /start, /timezone, /reminders, and /help commands.
 
 from __future__ import annotations
 
+import asyncio
+
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -34,7 +36,7 @@ async def start_command(
         context: The Telegram context.
     """
     chat_id = str(update.message.chat.id)  # type: ignore[union-attr]
-    is_new = upsert_user_settings(chat_id)
+    is_new = await asyncio.to_thread(upsert_user_settings, chat_id)
 
     await update.message.reply_text(  # type: ignore[union-attr]
         """🧠 <b>Welcome to ThinkBack</b>
@@ -60,9 +62,9 @@ Start by sharing your first thought 👇
     )
 
     if is_new:
-        user_settings_id = get_user_settings_id(chat_id)
+        user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
         if user_settings_id:
-            insert_default_reminders(user_settings_id)
+            await asyncio.to_thread(insert_default_reminders, user_settings_id)
 
         keyboard = build_timezone_keyboard(update.message.chat.id)  # type: ignore[union-attr]
         await update.message.reply_text(  # type: ignore[union-attr]
@@ -104,7 +106,7 @@ async def reminders_command(
         context: The Telegram context.
     """
     chat_id = str(update.message.chat.id)  # type: ignore[union-attr]
-    user_settings_id = get_user_settings_id(chat_id)
+    user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
 
     if not user_settings_id:
         await update.message.reply_text(  # type: ignore[union-attr]
@@ -112,7 +114,7 @@ async def reminders_command(
         )
         return
 
-    reminders = get_reminders(user_settings_id)
+    reminders = await asyncio.to_thread(get_reminders, user_settings_id)
     text, keyboard = build_reminders_message(reminders, user_settings_id)
     await update.message.reply_text(  # type: ignore[union-attr]
         text,

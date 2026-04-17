@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from src.api.bot_keyboards import (
     build_hour_picker_keyboard,
     build_reminders_message,
     build_timezone_keyboard,
 )
+from src.db.user_settings import ReminderRow
 
 
 class TestBuildTimezoneKeyboard:
@@ -41,10 +44,13 @@ class TestBuildRemindersMessage:
 
     def test_with_reminders(self) -> None:
         """Should list reminder times and include remove buttons."""
-        reminders = [
-            {"id": "r1", "time": "08:00:00"},
-            {"id": "r2", "time": "20:00:00"},
-        ]
+        reminders = cast(
+            list[ReminderRow],
+            [
+                {"id": "r1", "time": "08:00:00"},
+                {"id": "r2", "time": "20:00:00"},
+            ],
+        )
         text, keyboard = build_reminders_message(reminders, "aaa")
         assert "08:00" in text
         assert "20:00" in text
@@ -54,10 +60,23 @@ class TestBuildRemindersMessage:
 
     def test_max_reminders_hides_add(self) -> None:
         """Should not show 'Add reminder' when at 5 reminders."""
-        reminders = [{"id": f"r{i}", "time": f"{i:02d}:00:00"} for i in range(5)]
+        reminders = cast(
+            list[ReminderRow],
+            [{"id": f"r{i}", "time": f"{i:02d}:00:00"} for i in range(5)],
+        )
         _, keyboard = build_reminders_message(reminders, "aaa")
         buttons = [btn for row in keyboard.inline_keyboard for btn in row]
         assert not any("Add" in btn.text for btn in buttons)
+
+    def test_callback_data_includes_user_settings_id(self) -> None:
+        """Callback data should include user_settings_id for parsing."""
+        reminders = cast(list[ReminderRow], [{"id": "r1", "time": "08:00:00"}])
+        _, keyboard = build_reminders_message(reminders, "test-uuid-123")
+        buttons = [btn for row in keyboard.inline_keyboard for btn in row]
+        # Remove button should have format: rm_rem|{idx}|{user_settings_id}
+        assert buttons[0].callback_data == "rm_rem|0|test-uuid-123"
+        # Add button should have format: add_rem|{user_settings_id}
+        assert buttons[1].callback_data == "add_rem|test-uuid-123"
 
 
 class TestBuildHourPickerKeyboard:
@@ -70,3 +89,12 @@ class TestBuildHourPickerKeyboard:
         assert len(buttons) == 24
         assert buttons[0].text == "00:00"
         assert buttons[23].text == "23:00"
+
+    def test_callback_data_includes_user_settings_id(self) -> None:
+        """Callback data should include user_settings_id for parsing."""
+        keyboard = build_hour_picker_keyboard("test-uuid-456")
+        buttons = [btn for row in keyboard.inline_keyboard for btn in row]
+        # Each button should have format: add_hr|{hour}|{user_settings_id}
+        assert buttons[0].callback_data == "add_hr|0|test-uuid-456"
+        assert buttons[12].callback_data == "add_hr|12|test-uuid-456"
+        assert buttons[23].callback_data == "add_hr|23|test-uuid-456"

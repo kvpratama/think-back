@@ -3,8 +3,18 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import NotRequired, TypedDict
 
 from src.db.client import get_supabase_client
+
+
+class ReminderRow(TypedDict):
+    """A reminder_times row returned from the database."""
+
+    id: str
+    user_settings_id: str
+    time: str
+    created_at: NotRequired[str]
 
 
 def upsert_user_settings(telegram_chat_id: str) -> bool:
@@ -82,7 +92,7 @@ def update_timezone(telegram_chat_id: str, timezone_str: str) -> None:
 MAX_REMINDERS = 5
 
 
-def get_reminders(user_settings_id: str) -> list[dict[str, str]]:
+def get_reminders(user_settings_id: str) -> list[ReminderRow]:
     """Get all reminder times for a user, ordered by time.
 
     Args:

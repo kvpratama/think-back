@@ -42,21 +42,6 @@ def mock_context() -> MagicMock:
     return context
 
 
-async def test_start_command(mock_update: Update, mock_context: MagicMock) -> None:
-    """Test that start_command sends welcome message."""
-    from src.api.bot_commands import start_command
-
-    with (
-        patch("src.api.bot_commands.upsert_user_settings", return_value=False),
-        patch("src.api.bot_commands.get_user_settings_id", return_value="aaa"),
-        patch("src.api.bot_commands.insert_default_reminders"),
-    ):
-        await start_command(mock_update, mock_context)
-
-    assert mock_update.message is not None
-    cast(Any, mock_update.message.reply_text).assert_called_once()
-
-
 async def test_start_command_upserts_settings_and_shows_timezone_picker(
     mock_update: Update, mock_context: MagicMock
 ) -> None:

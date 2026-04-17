@@ -6,14 +6,17 @@ reminder management, and save confirmation.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from langchain_core.runnables import RunnableConfig
+from langgraph.types import Command
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes
 
+from src.api.bot_graph import _get_graph
 from src.api.bot_helpers import truncate_for_telegram
 from src.api.bot_keyboards import (
     build_hour_picker_keyboard,
@@ -22,7 +25,6 @@ from src.api.bot_keyboards import (
 from src.db.user_settings import (
     add_reminder,
     get_reminders,
-    get_user_settings_id,
     remove_reminder,
     update_timezone,
 )
@@ -56,7 +58,7 @@ async def handle_callback(
             tz_str = "UTC"
         else:
             tz_str = f"Etc/GMT{-offset:+d}"
-        update_timezone(chat_id, tz_str)
+        await asyncio.to_thread(update_timezone, chat_id, tz_str)
         label = f"UTC{offset:+d}" if offset != 0 else "UTC+0"
         try:
             await query.edit_message_text(text=f"Timezone set to {label} ✅")
@@ -67,15 +69,12 @@ async def handle_callback(
     if action == "rm_rem":
         if not query.message:
             return
-        chat_id = str(query.message.chat.id)
-        user_settings_id = get_user_settings_id(chat_id)
-        if not user_settings_id:
-            return
-        reminders = get_reminders(user_settings_id)
         idx = int(parts[1])
+        user_settings_id = parts[2]
+        reminders = await asyncio.to_thread(get_reminders, user_settings_id)
         if idx < len(reminders):
-            remove_reminder(reminders[idx]["id"])
-        reminders = get_reminders(user_settings_id)
+            await asyncio.to_thread(remove_reminder, reminders[idx]["id"])
+        reminders = await asyncio.to_thread(get_reminders, user_settings_id)
         text, keyboard = build_reminders_message(reminders, user_settings_id)
         try:
             await query.edit_message_text(text=text, reply_markup=keyboard)
@@ -86,10 +85,7 @@ async def handle_callback(
     if action == "add_rem":
         if not query.message:
             return
-        chat_id = str(query.message.chat.id)
-        user_settings_id = get_user_settings_id(chat_id)
-        if not user_settings_id:
-            return
+        user_settings_id = parts[1]
         keyboard = build_hour_picker_keyboard(user_settings_id)
         try:
             await query.edit_message_text(
@@ -103,20 +99,17 @@ async def handle_callback(
     if action == "add_hr":
         if not query.message:
             return
-        chat_id = str(query.message.chat.id)
-        user_settings_id = get_user_settings_id(chat_id)
-        if not user_settings_id:
-            return
         hour = int(parts[1])
+        user_settings_id = parts[2]
         time_str = f"{hour:02d}:00"
-        added = add_reminder(user_settings_id, time_str)
+        added = await asyncio.to_thread(add_reminder, user_settings_id, time_str)
         if not added:
             try:
                 await query.edit_message_text(text="⚠️ Maximum 5 reminders reached.")
             except TelegramError:
                 logger.exception("Failed to edit max reminders message")
             return
-        reminders = get_reminders(user_settings_id)
+        reminders = await asyncio.to_thread(get_reminders, user_settings_id)
         text, keyboard = build_reminders_message(reminders, user_settings_id)
         try:
             await query.edit_message_text(text=text, reply_markup=keyboard)
@@ -128,12 +121,8 @@ async def handle_callback(
     thread_id = parts[1] if len(parts) > 1 else ""
     approved = action == "save_yes"
 
-    from src.api.bot import _get_graph
-
     graph = _get_graph(context)
     config = RunnableConfig({"configurable": {"thread_id": thread_id}})
-
-    from langgraph.types import Command
 
     try:
         result = await graph.ainvoke(

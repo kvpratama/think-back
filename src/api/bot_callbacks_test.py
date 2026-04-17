@@ -22,6 +22,7 @@ def mock_context() -> MagicMock:
     """Create a mock Telegram Context."""
     context = MagicMock()
     context.bot = AsyncMock()
+    context.bot_data = {}
     return context
 
 
@@ -75,16 +76,17 @@ async def test_handle_callback_approved(
     mock_result_msg.content = "Memory saved: Motivation follows action"
     mock_graph.ainvoke = AsyncMock(return_value={"messages": [mock_result_msg]})
 
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_callback(mock_callback_update, mock_context)
+    mock_context.bot_data["graph"] = mock_graph
 
-        mock_graph.ainvoke.assert_called_once()
-        call_args = mock_graph.ainvoke.call_args
-        command = call_args[0][0]
-        assert command.resume == {"approved": True}
+    await handle_callback(mock_callback_update, mock_context)
 
-        assert mock_callback_update.callback_query is not None
-        cast(Any, mock_callback_update.callback_query.edit_message_text).assert_called_once()
+    mock_graph.ainvoke.assert_called_once()
+    call_args = mock_graph.ainvoke.call_args
+    command = call_args[0][0]
+    assert command.resume == {"approved": True}
+
+    assert mock_callback_update.callback_query is not None
+    cast(Any, mock_callback_update.callback_query.edit_message_text).assert_called_once()
 
 
 async def test_handle_callback_cancelled(
@@ -102,12 +104,13 @@ async def test_handle_callback_cancelled(
     mock_result_msg.content = "Save cancelled."
     mock_graph.ainvoke = AsyncMock(return_value={"messages": [mock_result_msg]})
 
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_callback(mock_callback_update, mock_context)
+    mock_context.bot_data["graph"] = mock_graph
 
-        call_args = mock_graph.ainvoke.call_args
-        command = call_args[0][0]
-        assert command.resume == {"approved": False}
+    await handle_callback(mock_callback_update, mock_context)
+
+    call_args = mock_graph.ainvoke.call_args
+    command = call_args[0][0]
+    assert command.resume == {"approved": False}
 
 
 async def test_handle_callback_remove_reminder(
@@ -117,7 +120,7 @@ async def test_handle_callback_remove_reminder(
     from src.api.bot_callbacks import handle_callback
 
     mock_query = MagicMock()
-    mock_query.data = "rm_rem|0"
+    mock_query.data = "rm_rem|0|aaa"
     mock_query.answer = AsyncMock()
     mock_query.edit_message_text = AsyncMock()
     mock_query.message = MagicMock()
@@ -128,7 +131,6 @@ async def test_handle_callback_remove_reminder(
     mock_upd.message = None
 
     with (
-        patch("src.api.bot_callbacks.get_user_settings_id", return_value="aaa"),
         patch("src.api.bot_callbacks.remove_reminder") as mock_remove,
         patch(
             "src.api.bot_callbacks.get_reminders",
@@ -154,7 +156,7 @@ async def test_handle_callback_add_reminder_shows_hour_picker(
     from src.api.bot_callbacks import handle_callback
 
     mock_query = MagicMock()
-    mock_query.data = "add_rem"
+    mock_query.data = "add_rem|aaa"
     mock_query.answer = AsyncMock()
     mock_query.edit_message_text = AsyncMock()
     mock_query.message = MagicMock()
@@ -164,8 +166,7 @@ async def test_handle_callback_add_reminder_shows_hour_picker(
     mock_upd.callback_query = mock_query
     mock_upd.message = None
 
-    with patch("src.api.bot_callbacks.get_user_settings_id", return_value="aaa"):
-        await handle_callback(mock_upd, mock_context)
+    await handle_callback(mock_upd, mock_context)
 
     mock_query.edit_message_text.assert_called_once()
     call_kwargs = mock_query.edit_message_text.call_args.kwargs
@@ -179,7 +180,7 @@ async def test_handle_callback_add_reminder_hour_saves(
     from src.api.bot_callbacks import handle_callback
 
     mock_query = MagicMock()
-    mock_query.data = "add_hr|14"
+    mock_query.data = "add_hr|14|aaa"
     mock_query.answer = AsyncMock()
     mock_query.edit_message_text = AsyncMock()
     mock_query.message = MagicMock()
@@ -190,7 +191,6 @@ async def test_handle_callback_add_reminder_hour_saves(
     mock_upd.message = None
 
     with (
-        patch("src.api.bot_callbacks.get_user_settings_id", return_value="aaa"),
         patch("src.api.bot_callbacks.add_reminder", return_value=True),
         patch(
             "src.api.bot_callbacks.get_reminders",

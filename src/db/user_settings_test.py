@@ -59,7 +59,7 @@ class TestUpsertUserSettings:
 class TestInsertDefaultReminders:
     """Tests for insert_default_reminders()."""
 
-    def test_inserts_two_default_reminder_times(self, mock_supabase: MagicMock) -> None:
+    def test_inserts_single_default_reminder_at_noon(self, mock_supabase: MagicMock) -> None:
         mock_supabase.table.return_value.insert.return_value.execute.return_value.data = [
             {"id": "r1", "user_settings_id": "aaa", "time": "12:00:00"},
         ]
@@ -69,6 +69,7 @@ class TestInsertDefaultReminders:
 
             insert_default_reminders("aaa")
 
+        mock_supabase.table.assert_called_with("reminder_times")
         insert_call = mock_supabase.table.return_value.insert.call_args[0][0]
         assert len(insert_call) == 1
         assert insert_call[0]["time"] == "12:00"

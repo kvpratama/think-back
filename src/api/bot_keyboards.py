@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from src.db.user_settings import ReminderRow
+
 
 def build_timezone_keyboard(chat_id: int) -> InlineKeyboardMarkup:
     """Build an inline keyboard with UTC offset buttons.
@@ -29,7 +31,7 @@ def build_timezone_keyboard(chat_id: int) -> InlineKeyboardMarkup:
 
 
 def build_reminders_message(
-    reminders: list[dict[str, str]],
+    reminders: list[ReminderRow],
     user_settings_id: str,
 ) -> tuple[str, InlineKeyboardMarkup]:
     """Build the reminders display text and inline keyboard.
@@ -57,7 +59,7 @@ def build_reminders_message(
             [
                 InlineKeyboardButton(
                     f"❌ Remove {time_display}",
-                    callback_data=f"rm_rem|{idx}",
+                    callback_data=f"rm_rem|{idx}|{user_settings_id}",
                 )
             ]
         )
@@ -66,7 +68,7 @@ def build_reminders_message(
             [
                 InlineKeyboardButton(
                     "➕ Add reminder",
-                    callback_data="add_rem",
+                    callback_data=f"add_rem|{user_settings_id}",
                 )
             ]
         )
@@ -87,7 +89,7 @@ def build_hour_picker_keyboard(user_settings_id: str) -> InlineKeyboardMarkup:
     row: list[InlineKeyboardButton] = []
     for hour in range(24):
         label = f"{hour:02d}:00"
-        row.append(InlineKeyboardButton(label, callback_data=f"add_hr|{hour}"))
+        row.append(InlineKeyboardButton(label, callback_data=f"add_hr|{hour}|{user_settings_id}"))
         if len(row) == 4:
             rows.append(row)
             row = []
