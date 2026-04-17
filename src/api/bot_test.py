@@ -212,3 +212,15 @@ async def test_handle_message_interrupt_no_duplicates(
         text = last_call.kwargs.get("text", last_call[1].get("text", ""))
         assert "Save this insight?" in text
         assert "duplicate" not in text.lower()
+
+
+async def test_unknown_command(mock_update: Update, mock_context: MagicMock) -> None:
+    """Test that unknown commands receive a helpful error message."""
+    from src.api.bot import unknown_command
+
+    await unknown_command(mock_update, mock_context)
+
+    assert mock_update.message is not None
+    cast(Any, mock_update.message.reply_text).assert_called_once_with(
+        "Unknown command. Use /help to see available commands."
+    )

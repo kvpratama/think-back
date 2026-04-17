@@ -63,6 +63,19 @@ def _get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
     return context.bot_data["graph"]
 
 
+async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle unknown commands.
+
+    Args:
+        update: The Telegram update.
+        context: The Telegram context.
+    """
+    if not update.message or not update.message.from_user:
+        return
+
+    await update.message.reply_text("Unknown command. Use /help to see available commands.")
+
+
 async def handle_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -222,6 +235,7 @@ def create_application() -> Application:
     application.add_handler(CommandHandler("timezone", timezone_command))
     application.add_handler(CommandHandler("reminders", reminders_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(CallbackQueryHandler(handle_callback))
 
