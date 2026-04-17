@@ -13,6 +13,8 @@
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
   new.updated_at = now();
@@ -35,7 +37,6 @@ create table if not exists public.user_settings (
   -- Scheduler times — stored as TIME (no date, no timezone — timezone applied at runtime)
   reminder_time_1     time        not null default '08:00',
   reminder_time_2     time        not null default '20:00',
-  test_time           time        not null default '09:00',
 
   -- Timezone string e.g. 'Asia/Jakarta', 'America/New_York', 'UTC'
   -- Applied by APScheduler when scheduling jobs
@@ -43,7 +44,6 @@ create table if not exists public.user_settings (
 
   -- Feature toggles
   reminders_enabled   boolean     not null default true,
-  test_enabled        boolean     not null default true,
   confirm_before_save boolean     not null default true,
 
   -- Skill ref: schema-data-types — timestamptz always

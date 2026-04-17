@@ -1,6 +1,6 @@
 -- ============================================================
--- Migration 002: memories, tags, memory_tags
--- Core knowledge base tables for ThinkBack
+-- Migration 002: memories
+-- Core knowledge base table for ThinkBack
 -- ============================================================
 
 
@@ -26,46 +26,12 @@ create table if not exists public.memories (
   last_reviewed_at timestamptz,                 -- null until first review
 
   -- Surfacing weight inputs — kept simple (rolling avg only, per PRD decision)
-  review_count    int         not null default 0,
-  test_score_avg  float       not null default 0.0  -- 0.0 = never tested
+  review_count    int         not null default 0
 );
 
 -- Skill ref: security-rls-basics — enable RLS on all tables in Supabase
 -- Single-user app: service role key bypasses RLS; anon key is blocked
 alter table public.memories enable row level security;
-
-
--- ------------------------------------------------------------
--- TABLE: tags
--- Normalised tag lookup table — avoids TEXT[] duplication issues
--- ------------------------------------------------------------
-create table if not exists public.tags (
-  -- Skill ref: schema-primary-keys — bigint identity for simple lookup table
-  id    bigint  generated always as identity primary key,
-
-  -- Lowercase enforced via CHECK constraint — prevents "Habits" vs "habits" duplicates
-  -- Skill ref: schema-constraints — use CHECK for data integrity
-  name  text    not null,
-
-  constraint tags_name_unique unique (name),
-  constraint tags_name_lowercase check (name = lower(name))
-);
-
-alter table public.tags enable row level security;
-
-
--- ------------------------------------------------------------
--- TABLE: memory_tags
--- Join table: many memories ↔ many tags
--- ------------------------------------------------------------
-create table if not exists public.memory_tags (
-  memory_id   uuid    not null references public.memories(id) on delete cascade,
-  tag_id      bigint  not null references public.tags(id)     on delete cascade,
-
-  primary key (memory_id, tag_id)
-);
-
-alter table public.memory_tags enable row level security;
 
 
 -- ============================================================
@@ -94,16 +60,3 @@ create index if not exists memories_last_reviewed_at_idx
 create index if not exists memories_never_reviewed_idx
   on public.memories (created_at)
   where last_reviewed_at is null;
-
-
--- ============================================================
--- INDEXES: memory_tags
--- ============================================================
-
--- Skill ref: schema-foreign-key-indexes — Postgres does NOT auto-index FK columns
--- Both directions needed: memory→tags (for /list filtering) and tag→memories (for cascade)
-create index if not exists memory_tags_tag_id_idx
-  on public.memory_tags (tag_id);
-
-create index if not exists memory_tags_memory_id_idx
-  on public.memory_tags (memory_id);

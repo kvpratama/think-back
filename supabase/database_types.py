@@ -41,8 +41,6 @@ AuthOauthResponseType: TypeAlias = Literal["code"]
 
 AuthOauthClientType: TypeAlias = Literal["public", "confidential"]
 
-PublicTestSessionStatus: TypeAlias = Literal["active", "completed"]
-
 class PublicMemories(BaseModel):
     content: str = Field(alias="content")
     created_at: datetime.datetime = Field(alias="created_at")
@@ -52,7 +50,6 @@ class PublicMemories(BaseModel):
     metadata: Optional[Json[Any]] = Field(alias="metadata")
     review_count: int = Field(alias="review_count")
     source: Optional[str] = Field(alias="source")
-    test_score_avg: float = Field(alias="test_score_avg")
 
 class PublicMemoriesInsert(TypedDict):
     content: Annotated[str, Field(alias="content")]
@@ -63,7 +60,6 @@ class PublicMemoriesInsert(TypedDict):
     metadata: NotRequired[Annotated[Optional[Json[Any]], Field(alias="metadata")]]
     review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
     source: NotRequired[Annotated[Optional[str], Field(alias="source")]]
-    test_score_avg: NotRequired[Annotated[float, Field(alias="test_score_avg")]]
 
 class PublicMemoriesUpdate(TypedDict):
     content: NotRequired[Annotated[str, Field(alias="content")]]
@@ -74,61 +70,6 @@ class PublicMemoriesUpdate(TypedDict):
     metadata: NotRequired[Annotated[Optional[Json[Any]], Field(alias="metadata")]]
     review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
     source: NotRequired[Annotated[Optional[str], Field(alias="source")]]
-    test_score_avg: NotRequired[Annotated[float, Field(alias="test_score_avg")]]
-
-class PublicTags(BaseModel):
-    id: int = Field(alias="id")
-    name: str = Field(alias="name")
-
-class PublicTagsInsert(TypedDict):
-    id: NotRequired[Annotated[int, Field(alias="id")]]
-    name: Annotated[str, Field(alias="name")]
-
-class PublicTagsUpdate(TypedDict):
-    id: NotRequired[Annotated[int, Field(alias="id")]]
-    name: NotRequired[Annotated[str, Field(alias="name")]]
-
-class PublicMemoryTags(BaseModel):
-    memory_id: uuid.UUID = Field(alias="memory_id")
-    tag_id: int = Field(alias="tag_id")
-
-class PublicMemoryTagsInsert(TypedDict):
-    memory_id: Annotated[uuid.UUID, Field(alias="memory_id")]
-    tag_id: Annotated[int, Field(alias="tag_id")]
-
-class PublicMemoryTagsUpdate(TypedDict):
-    memory_id: NotRequired[Annotated[uuid.UUID, Field(alias="memory_id")]]
-    tag_id: NotRequired[Annotated[int, Field(alias="tag_id")]]
-
-class PublicTestSessions(BaseModel):
-    completed_at: Optional[datetime.datetime] = Field(alias="completed_at")
-    conversation: Json[Any] = Field(alias="conversation")
-    created_at: datetime.datetime = Field(alias="created_at")
-    id: uuid.UUID = Field(alias="id")
-    memory_id: uuid.UUID = Field(alias="memory_id")
-    question: str = Field(alias="question")
-    score: Optional[int] = Field(alias="score")
-    status: PublicTestSessionStatus = Field(alias="status")
-
-class PublicTestSessionsInsert(TypedDict):
-    completed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="completed_at")]]
-    conversation: NotRequired[Annotated[Json[Any], Field(alias="conversation")]]
-    created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
-    id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
-    memory_id: Annotated[uuid.UUID, Field(alias="memory_id")]
-    question: Annotated[str, Field(alias="question")]
-    score: NotRequired[Annotated[Optional[int], Field(alias="score")]]
-    status: NotRequired[Annotated[PublicTestSessionStatus, Field(alias="status")]]
-
-class PublicTestSessionsUpdate(TypedDict):
-    completed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="completed_at")]]
-    conversation: NotRequired[Annotated[Json[Any], Field(alias="conversation")]]
-    created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
-    id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
-    memory_id: NotRequired[Annotated[uuid.UUID, Field(alias="memory_id")]]
-    question: NotRequired[Annotated[str, Field(alias="question")]]
-    score: NotRequired[Annotated[Optional[int], Field(alias="score")]]
-    status: NotRequired[Annotated[PublicTestSessionStatus, Field(alias="status")]]
 
 class PublicUserSettings(BaseModel):
     confirm_before_save: bool = Field(alias="confirm_before_save")
@@ -138,8 +79,6 @@ class PublicUserSettings(BaseModel):
     reminder_time_2: datetime.time = Field(alias="reminder_time_2")
     reminders_enabled: bool = Field(alias="reminders_enabled")
     telegram_chat_id: str = Field(alias="telegram_chat_id")
-    test_enabled: bool = Field(alias="test_enabled")
-    test_time: datetime.time = Field(alias="test_time")
     timezone: str = Field(alias="timezone")
     updated_at: datetime.datetime = Field(alias="updated_at")
 
@@ -151,8 +90,6 @@ class PublicUserSettingsInsert(TypedDict):
     reminder_time_2: NotRequired[Annotated[datetime.time, Field(alias="reminder_time_2")]]
     reminders_enabled: NotRequired[Annotated[bool, Field(alias="reminders_enabled")]]
     telegram_chat_id: Annotated[str, Field(alias="telegram_chat_id")]
-    test_enabled: NotRequired[Annotated[bool, Field(alias="test_enabled")]]
-    test_time: NotRequired[Annotated[datetime.time, Field(alias="test_time")]]
     timezone: NotRequired[Annotated[str, Field(alias="timezone")]]
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
 
@@ -164,27 +101,5 @@ class PublicUserSettingsUpdate(TypedDict):
     reminder_time_2: NotRequired[Annotated[datetime.time, Field(alias="reminder_time_2")]]
     reminders_enabled: NotRequired[Annotated[bool, Field(alias="reminders_enabled")]]
     telegram_chat_id: NotRequired[Annotated[str, Field(alias="telegram_chat_id")]]
-    test_enabled: NotRequired[Annotated[bool, Field(alias="test_enabled")]]
-    test_time: NotRequired[Annotated[datetime.time, Field(alias="test_time")]]
     timezone: NotRequired[Annotated[str, Field(alias="timezone")]]
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
-
-class PublicMemoriesWithTags(BaseModel):
-    content: Optional[str] = Field(alias="content")
-    created_at: Optional[datetime.datetime] = Field(alias="created_at")
-    id: Optional[uuid.UUID] = Field(alias="id")
-    last_reviewed_at: Optional[datetime.datetime] = Field(alias="last_reviewed_at")
-    review_count: Optional[int] = Field(alias="review_count")
-    source: Optional[str] = Field(alias="source")
-    tags: Optional[List[str]] = Field(alias="tags")
-    test_score_avg: Optional[float] = Field(alias="test_score_avg")
-
-class PublicSurfacingCandidates(BaseModel):
-    days_since_reviewed: Optional[float] = Field(alias="days_since_reviewed")
-    id: Optional[uuid.UUID] = Field(alias="id")
-    is_novel: Optional[bool] = Field(alias="is_novel")
-    last_reviewed_at: Optional[datetime.datetime] = Field(alias="last_reviewed_at")
-    review_count: Optional[int] = Field(alias="review_count")
-    reviewed_recently: Optional[bool] = Field(alias="reviewed_recently")
-    source: Optional[str] = Field(alias="source")
-    test_score_avg: Optional[float] = Field(alias="test_score_avg")

@@ -14,7 +14,7 @@
 -- our memories table columns:
 --   content   → memories.content (the full saved text)
 --   metadata  → a JSONB object we build from our columns
---              (source, last_reviewed_at, review_count, test_score_avg)
+--              (source, last_reviewed_at, review_count)
 --              plus any additional memories.metadata stored in the table
 --
 -- The similarity score is: 1 - cosine_distance (higher = more similar)
@@ -31,6 +31,8 @@ returns table (
   similarity float
 )
 language plpgsql
+security definer
+set search_path = public, extensions
 as $$
 #variable_conflict use_column
 begin
@@ -41,8 +43,7 @@ begin
     jsonb_build_object(
       'source',           memories.source,
       'last_reviewed_at', memories.last_reviewed_at,
-      'review_count',     memories.review_count,
-      'test_score_avg',   memories.test_score_avg
+      'review_count',     memories.review_count
     ) || COALESCE(memories.metadata, '{}'::jsonb) as metadata,
     1 - (memories.embedding <=> query_embedding) as similarity
   from memories
