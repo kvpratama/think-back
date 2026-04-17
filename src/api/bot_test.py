@@ -359,3 +359,176 @@ async def test_handle_timezone_callback(
     # UTC+7 → Etc/GMT-7 (POSIX inverts the sign)
     mock_update_tz.assert_called_once_with("67890", "Etc/GMT-7")
     mock_query.edit_message_text.assert_called_once()
+
+
+async def test_timezone_command_shows_offset_picker(
+    mock_update: Update, mock_context: MagicMock
+) -> None:
+    """Test that /timezone shows the UTC offset keyboard."""
+    from src.api.bot import timezone_command
+
+    await timezone_command(mock_update, mock_context)
+
+    assert mock_update.message is not None
+    call = cast(Any, mock_update.message.reply_text).call_args
+    assert "UTC offset" in call.args[0] or "UTC offset" in call.kwargs.get("text", "")
+    assert "reply_markup" in call.kwargs
+
+
+async def test_reminders_command_shows_current_reminders(
+    mock_update: Update, mock_context: MagicMock
+) -> None:
+    """Test that /reminders shows current reminder times with remove buttons."""
+    from src.api.bot import reminders_command
+
+    with (
+        patch("src.api.bot.get_user_settings_id", return_value="aaa"),
+        patch(
+            "src.api.bot.get_reminders",
+            return_value=[
+                {"id": "r1", "user_settings_id": "aaa", "time": "08:00:00"},
+                {"id": "r2", "user_settings_id": "aaa", "time": "20:00:00"},
+            ],
+        ),
+    ):
+        await reminders_command(mock_update, mock_context)
+
+    assert mock_update.message is not None
+    call = cast(Any, mock_update.message.reply_text).call_args
+    text = call.args[0] if call.args else call.kwargs.get("text", "")
+    assert "08:00" in text
+    assert "20:00" in text
+    assert "reply_markup" in call.kwargs
+
+
+async def test_reminders_command_no_settings(mock_update: Update, mock_context: MagicMock) -> None:
+    """Test that /reminders handles missing user settings gracefully."""
+    from src.api.bot import reminders_command
+
+    with patch("src.api.bot.get_user_settings_id", return_value=None):
+        await reminders_command(mock_update, mock_context)
+
+    assert mock_update.message is not None
+    call = cast(Any, mock_update.message.reply_text).call_args
+    text = call.args[0] if call.args else call.kwargs.get("text", "")
+    assert "/start" in text
+
+
+async def test_handle_callback_remove_reminder(
+    mock_context: MagicMock,
+) -> None:
+    """Test that remove reminder callback removes and refreshes the list."""
+    from src.api.bot import handle_callback
+
+    mock_query = MagicMock()
+    mock_query.data = "rm_rem|0"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.message = MagicMock()
+    mock_query.message.chat.id = 67890
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    with (
+        patch("src.api.bot.get_user_settings_id", return_value="aaa"),
+        patch("src.api.bot.remove_reminder") as mock_remove,
+        patch(
+            "src.api.bot.get_reminders",
+            side_effect=[
+                [
+                    {"id": "r1", "user_settings_id": "aaa", "time": "08:00:00"},
+                    {"id": "r2", "user_settings_id": "aaa", "time": "20:00:00"},
+                ],
+                [{"id": "r2", "user_settings_id": "aaa", "time": "20:00:00"}],
+            ],
+        ),
+    ):
+        await handle_callback(mock_upd, mock_context)
+
+    mock_remove.assert_called_once_with("r1")
+    mock_query.edit_message_text.assert_called_once()
+
+
+async def test_handle_callback_add_reminder_shows_hour_picker(
+    mock_context: MagicMock,
+) -> None:
+    """Test that add reminder callback shows hour picker keyboard."""
+    from src.api.bot import handle_callback
+
+    mock_query = MagicMock()
+    mock_query.data = "add_rem"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.message = MagicMock()
+    mock_query.message.chat.id = 67890
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    with patch("src.api.bot.get_user_settings_id", return_value="aaa"):
+        await handle_callback(mock_upd, mock_context)
+
+    mock_query.edit_message_text.assert_called_once()
+    call_kwargs = mock_query.edit_message_text.call_args.kwargs
+    assert "reply_markup" in call_kwargs
+
+
+async def test_handle_callback_add_reminder_hour_saves(
+    mock_context: MagicMock,
+) -> None:
+    """Test that selecting an hour from the picker adds the reminder."""
+    from src.api.bot import handle_callback
+
+    mock_query = MagicMock()
+    mock_query.data = "add_hr|14"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.message = MagicMock()
+    mock_query.message.chat.id = 67890
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    with (
+        patch("src.api.bot.get_user_settings_id", return_value="aaa"),
+        patch("src.api.bot.add_reminder", return_value=True),
+        patch(
+            "src.api.bot.get_reminders",
+            return_value=[
+                {"id": "r1", "user_settings_id": "aaa", "time": "08:00:00"},
+                {"id": "r2", "user_settings_id": "aaa", "time": "14:00:00"},
+                {"id": "r3", "user_settings_id": "aaa", "time": "20:00:00"},
+            ],
+        ),
+    ):
+        await handle_callback(mock_upd, mock_context)
+
+    mock_query.edit_message_text.assert_called_once()
+    text = mock_query.edit_message_text.call_args.kwargs.get(
+        "text",
+        (
+            mock_query.edit_message_text.call_args.args[0]
+            if mock_query.edit_message_text.call_args.args
+            else ""
+        ),
+    )
+    assert "14:00" in text
+
+
+async def test_help_command_lists_commands(mock_update: Update, mock_context: MagicMock) -> None:
+    """Test that /help lists all available commands."""
+    from src.api.bot import help_command
+
+    await help_command(mock_update, mock_context)
+
+    assert mock_update.message is not None
+    call = cast(Any, mock_update.message.reply_text).call_args
+    text = call.args[0] if call.args else call.kwargs.get("text", "")
+    assert "/start" in text
+    assert "/timezone" in text
+    assert "/reminders" in text
+    assert "/help" in text

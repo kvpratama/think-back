@@ -61,7 +61,8 @@ def insert_default_reminders(user_settings_id: str) -> None:
     client = get_supabase_client()
     client.table("reminder_times").insert(
         [
-            {"user_settings_id": user_settings_id, "time": "12:00"},
+            {"user_settings_id": user_settings_id, "time": "08:00"},
+            {"user_settings_id": user_settings_id, "time": "20:00"},
         ]
     ).execute()
 
@@ -77,3 +78,64 @@ def update_timezone(telegram_chat_id: str, timezone_str: str) -> None:
     client.table("user_settings").update({"timezone": timezone_str}).eq(
         "telegram_chat_id", telegram_chat_id
     ).execute()
+
+
+MAX_REMINDERS = 5
+
+
+def get_reminders(user_settings_id: str) -> list[dict[str, str]]:
+    """Get all reminder times for a user, ordered by time.
+
+    Args:
+        user_settings_id: The user_settings UUID.
+
+    Returns:
+        A list of reminder dicts with id, user_settings_id, and time.
+    """
+    client = get_supabase_client()
+    result = (
+        client.table("reminder_times")
+        .select("id, user_settings_id, time")
+        .eq("user_settings_id", user_settings_id)
+        .order("time")
+        .execute()
+    )
+    return result.data
+
+
+def add_reminder(user_settings_id: str, time_str: str) -> bool:
+    """Add a reminder time for a user.
+
+    Enforces the maximum of 5 reminders per user.
+
+    Args:
+        user_settings_id: The user_settings UUID.
+        time_str: The time string in HH:MM format.
+
+    Returns:
+        True if added successfully, False if at max capacity.
+    """
+    client = get_supabase_client()
+    existing = (
+        client.table("reminder_times")
+        .select("id")
+        .eq("user_settings_id", user_settings_id)
+        .execute()
+    )
+    if len(existing.data) >= MAX_REMINDERS:
+        return False
+
+    client.table("reminder_times").insert(
+        {"user_settings_id": user_settings_id, "time": time_str}
+    ).execute()
+    return True
+
+
+def remove_reminder(reminder_id: str) -> None:
+    """Remove a reminder time by its ID.
+
+    Args:
+        reminder_id: The reminder_times UUID.
+    """
+    client = get_supabase_client()
+    client.table("reminder_times").delete().eq("id", reminder_id).execute()

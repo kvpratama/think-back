@@ -32,8 +32,11 @@ from telegram.ext import (
 from src.api.bot_helpers import truncate_for_telegram
 from src.core.config import get_settings
 from src.db.user_settings import (
+    add_reminder,
+    get_reminders,
     get_user_settings_id,
     insert_default_reminders,
+    remove_reminder,
     update_timezone,
     upsert_user_settings,
 )
@@ -85,6 +88,74 @@ def _build_timezone_keyboard(chat_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
+def _build_reminders_message(
+    reminders: list[dict[str, str]],
+    user_settings_id: str,
+) -> tuple[str, InlineKeyboardMarkup]:
+    """Build the reminders display text and inline keyboard.
+
+    Args:
+        reminders: List of reminder dicts with id and time.
+        user_settings_id: The user_settings UUID for callback data.
+
+    Returns:
+        Tuple of (message text, inline keyboard markup).
+    """
+    if not reminders:
+        text = "⏰ You have no reminders set."
+    else:
+        lines = ["⏰ Your reminders:"]
+        for r in reminders:
+            time_display = r["time"][:5]
+            lines.append(f"  • {time_display}")
+        text = "\n".join(lines)
+
+    buttons: list[list[InlineKeyboardButton]] = []
+    for idx, r in enumerate(reminders):
+        time_display = r["time"][:5]
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    f"❌ Remove {time_display}",
+                    callback_data=f"rm_rem|{idx}",
+                )
+            ]
+        )
+    if len(reminders) < 5:
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    "➕ Add reminder",
+                    callback_data="add_rem",
+                )
+            ]
+        )
+
+    return text, InlineKeyboardMarkup(buttons)
+
+
+def _build_hour_picker_keyboard(user_settings_id: str) -> InlineKeyboardMarkup:
+    """Build an inline keyboard with hour buttons (00:00 - 23:00).
+
+    Args:
+        user_settings_id: The user_settings UUID for callback data.
+
+    Returns:
+        InlineKeyboardMarkup with hour buttons.
+    """
+    rows: list[list[InlineKeyboardButton]] = []
+    row: list[InlineKeyboardButton] = []
+    for hour in range(24):
+        label = f"{hour:02d}:00"
+        row.append(InlineKeyboardButton(label, callback_data=f"add_hr|{hour}"))
+        if len(row) == 4:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return InlineKeyboardMarkup(rows)
+
+
 async def start_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -118,6 +189,79 @@ async def start_command(
             "🌍 What's your UTC offset?",
             reply_markup=keyboard,
         )
+
+
+async def timezone_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle the /timezone command.
+
+    Shows the UTC offset picker so the user can update their timezone.
+
+    Args:
+        update: The Telegram update.
+        context: The Telegram context.
+    """
+    chat_id = update.message.chat.id  # type: ignore[union-attr]
+    keyboard = _build_timezone_keyboard(chat_id)
+    await update.message.reply_text(  # type: ignore[union-attr]
+        "🌍 Select your UTC offset:",
+        reply_markup=keyboard,
+    )
+
+
+async def reminders_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle the /reminders command.
+
+    Shows current reminder times with options to add or remove.
+
+    Args:
+        update: The Telegram update.
+        context: The Telegram context.
+    """
+    chat_id = str(update.message.chat.id)  # type: ignore[union-attr]
+    user_settings_id = get_user_settings_id(chat_id)
+
+    if not user_settings_id:
+        await update.message.reply_text(  # type: ignore[union-attr]
+            "Please run /start first to set up your account."
+        )
+        return
+
+    reminders = get_reminders(user_settings_id)
+    text, keyboard = _build_reminders_message(reminders, user_settings_id)
+    await update.message.reply_text(  # type: ignore[union-attr]
+        text,
+        reply_markup=keyboard,
+    )
+
+
+async def help_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle the /help command.
+
+    Lists all available bot commands.
+
+    Args:
+        update: The Telegram update.
+        context: The Telegram context.
+    """
+    await update.message.reply_text(  # type: ignore[union-attr]
+        "📚 <b>Available commands:</b>\n\n"
+        "/start — Set up your account\n"
+        "/timezone — Change your UTC offset\n"
+        "/reminders — Manage reminder times\n"
+        "/help — Show this message\n\n"
+        "Or just type naturally to chat, save insights, "
+        "or search your saved knowledge!",
+        parse_mode=ParseMode.HTML,
+    )
 
 
 async def handle_message(
@@ -299,6 +443,69 @@ async def handle_callback(
             logger.exception("Failed to edit timezone message")
         return
 
+    if action == "rm_rem":
+        # Remove reminder: callback_data = "rm_rem|<index>"
+        if not query.message:
+            return
+        chat_id = str(query.message.chat.id)
+        user_settings_id = get_user_settings_id(chat_id)
+        if not user_settings_id:
+            return
+        reminders = get_reminders(user_settings_id)
+        idx = int(parts[1])
+        if idx < len(reminders):
+            remove_reminder(reminders[idx]["id"])
+        reminders = get_reminders(user_settings_id)
+        text, keyboard = _build_reminders_message(reminders, user_settings_id)
+        try:
+            await query.edit_message_text(text=text, reply_markup=keyboard)
+        except TelegramError:
+            logger.exception("Failed to edit reminders message")
+        return
+
+    if action == "add_rem":
+        # Show hour picker: callback_data = "add_rem"
+        if not query.message:
+            return
+        chat_id = str(query.message.chat.id)
+        user_settings_id = get_user_settings_id(chat_id)
+        if not user_settings_id:
+            return
+        keyboard = _build_hour_picker_keyboard(user_settings_id)
+        try:
+            await query.edit_message_text(
+                text="🕐 Select a time for the new reminder:",
+                reply_markup=keyboard,
+            )
+        except TelegramError:
+            logger.exception("Failed to edit hour picker message")
+        return
+
+    if action == "add_hr":
+        # Add reminder at selected hour: callback_data = "add_hr|<hour>"
+        if not query.message:
+            return
+        chat_id = str(query.message.chat.id)
+        user_settings_id = get_user_settings_id(chat_id)
+        if not user_settings_id:
+            return
+        hour = int(parts[1])
+        time_str = f"{hour:02d}:00"
+        added = add_reminder(user_settings_id, time_str)
+        if not added:
+            try:
+                await query.edit_message_text(text="⚠️ Maximum 5 reminders reached.")
+            except TelegramError:
+                logger.exception("Failed to edit max reminders message")
+            return
+        reminders = get_reminders(user_settings_id)
+        text, keyboard = _build_reminders_message(reminders, user_settings_id)
+        try:
+            await query.edit_message_text(text=text, reply_markup=keyboard)
+        except TelegramError:
+            logger.exception("Failed to edit reminders message")
+        return
+
     # Save confirmation: callback_data = "save_yes|<thread_id>" or "save_no|<thread_id>"
     thread_id = parts[1] if len(parts) > 1 else ""
     approved = action == "save_yes"
@@ -344,6 +551,9 @@ def create_application() -> Application:
     )
 
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("timezone", timezone_command))
+    application.add_handler(CommandHandler("reminders", reminders_command))
+    application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(CallbackQueryHandler(handle_callback))
 

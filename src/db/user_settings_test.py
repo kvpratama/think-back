@@ -119,3 +119,84 @@ class TestGetUserSettingsId:
             result = get_user_settings_id("999")
 
         assert result is None
+
+
+class TestGetReminders:
+    """Tests for get_reminders()."""
+
+    def test_returns_reminder_times_for_user(self, mock_supabase: MagicMock) -> None:
+        chain = mock_supabase.table.return_value.select.return_value.eq.return_value
+        chain = chain.order.return_value
+        chain.execute.return_value.data = [
+            {"id": "r1", "user_settings_id": "aaa", "time": "08:00:00"},
+            {"id": "r2", "user_settings_id": "aaa", "time": "20:00:00"},
+        ]
+
+        with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
+            from src.db.user_settings import get_reminders
+
+            result = get_reminders("aaa")
+
+        assert len(result) == 2
+        assert result[0]["time"] == "08:00:00"
+
+    def test_returns_empty_list_when_no_reminders(self, mock_supabase: MagicMock) -> None:
+        chain = mock_supabase.table.return_value.select.return_value.eq.return_value
+        chain = chain.order.return_value
+        chain.execute.return_value.data = []
+
+        with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
+            from src.db.user_settings import get_reminders
+
+            result = get_reminders("aaa")
+
+        assert result == []
+
+
+class TestAddReminder:
+    """Tests for add_reminder()."""
+
+    def test_adds_reminder_time(self, mock_supabase: MagicMock) -> None:
+        chain = mock_supabase.table.return_value.select.return_value.eq.return_value
+        chain.execute.return_value.data = [
+            {"id": "r1"},
+            {"id": "r2"},
+        ]
+        mock_supabase.table.return_value.insert.return_value.execute.return_value.data = [
+            {"id": "r3", "user_settings_id": "aaa", "time": "14:00:00"},
+        ]
+
+        with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
+            from src.db.user_settings import add_reminder
+
+            result = add_reminder("aaa", "14:00")
+
+        assert result is True
+
+    def test_rejects_when_at_max(self, mock_supabase: MagicMock) -> None:
+        chain = mock_supabase.table.return_value.select.return_value.eq.return_value
+        chain.execute.return_value.data = [{"id": f"r{i}"} for i in range(5)]
+
+        with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
+            from src.db.user_settings import add_reminder
+
+            result = add_reminder("aaa", "14:00")
+
+        assert result is False
+        mock_supabase.table.return_value.insert.assert_not_called()
+
+
+class TestRemoveReminder:
+    """Tests for remove_reminder()."""
+
+    def test_removes_reminder_by_id(self, mock_supabase: MagicMock) -> None:
+        chain = mock_supabase.table.return_value.delete.return_value.eq.return_value
+        chain.execute.return_value.data = [{"id": "r1"}]
+
+        with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
+            from src.db.user_settings import remove_reminder
+
+            remove_reminder("r1")
+
+        mock_supabase.table.assert_called_with("reminder_times")
+        mock_supabase.table.return_value.delete.return_value.eq.assert_called_with("id", "r1")
