@@ -66,7 +66,7 @@ Start by sharing your first thought 👇
 
         keyboard = build_timezone_keyboard(update.message.chat.id)  # type: ignore[union-attr]
         await update.message.reply_text(  # type: ignore[union-attr]
-            "🌍 What's your UTC offset?",
+            "🌍 What's your time zone?",
             reply_markup=keyboard,
         )
 
