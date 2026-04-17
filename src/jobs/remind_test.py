@@ -21,73 +21,129 @@ class TestGetDueUsers:
     def test_returns_user_whose_reminder_time_matches_current_hour(
         self, mock_supabase: MagicMock
     ) -> None:
-        mock_data = [
+        # First call: user_settings query
+        mock_settings_response = MagicMock()
+        mock_settings_response.data = [
             {
+                "id": "settings-1",
                 "telegram_chat_id": "123456",
-                "reminder_time_1": "08:00:00",
-                "reminder_time_2": "20:00:00",
                 "timezone": "UTC",
-                "reminders_enabled": True,
             },
         ]
-        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = mock_data  # noqa: E501
+        # Second call: reminder_times query
+        mock_reminders_response = MagicMock()
+        mock_reminders_response.data = [
+            {"user_settings_id": "settings-1", "time": "08:00:00"},
+            {"user_settings_id": "settings-1", "time": "20:00:00"},
+        ]
+
+        def table_side_effect(name: str) -> MagicMock:
+            mock_table = MagicMock()
+            if name == "user_settings":
+                mock_table.select.return_value.execute.return_value = mock_settings_response
+            elif name == "reminder_times":
+                mock_table.select.return_value.execute.return_value = mock_reminders_response
+            return mock_table
+
+        mock_supabase.table.side_effect = table_side_effect
 
         with patch("src.jobs.remind.get_supabase_client", return_value=mock_supabase):
             from src.jobs.remind import get_due_users
 
-            # Simulate running at 08:30 UTC
             fake_now = datetime(2026, 4, 16, 8, 30, tzinfo=UTC)
             result = get_due_users(now=fake_now)
 
         assert result == ["123456"]
 
     def test_skips_user_whose_reminder_time_does_not_match(self, mock_supabase: MagicMock) -> None:
-        mock_data = [
+        mock_settings_response = MagicMock()
+        mock_settings_response.data = [
             {
+                "id": "settings-1",
                 "telegram_chat_id": "123456",
-                "reminder_time_1": "08:00:00",
-                "reminder_time_2": "20:00:00",
                 "timezone": "UTC",
-                "reminders_enabled": True,
             },
         ]
-        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = mock_data  # noqa: E501
+        mock_reminders_response = MagicMock()
+        mock_reminders_response.data = [
+            {"user_settings_id": "settings-1", "time": "08:00:00"},
+            {"user_settings_id": "settings-1", "time": "20:00:00"},
+        ]
+
+        def table_side_effect(name: str) -> MagicMock:
+            mock_table = MagicMock()
+            if name == "user_settings":
+                mock_table.select.return_value.execute.return_value = mock_settings_response
+            elif name == "reminder_times":
+                mock_table.select.return_value.execute.return_value = mock_reminders_response
+            return mock_table
+
+        mock_supabase.table.side_effect = table_side_effect
 
         with patch("src.jobs.remind.get_supabase_client", return_value=mock_supabase):
             from src.jobs.remind import get_due_users
 
-            # Simulate running at 15:00 UTC — neither 08 nor 20
             fake_now = datetime(2026, 4, 16, 15, 0, tzinfo=UTC)
             result = get_due_users(now=fake_now)
 
         assert result == []
 
     def test_respects_user_timezone(self, mock_supabase: MagicMock) -> None:
-        mock_data = [
+        mock_settings_response = MagicMock()
+        mock_settings_response.data = [
             {
+                "id": "settings-1",
                 "telegram_chat_id": "999",
-                "reminder_time_1": "08:00:00",
-                "reminder_time_2": "20:00:00",
-                "timezone": "Asia/Jakarta",  # UTC+7
-                "reminders_enabled": True,
+                "timezone": "Etc/GMT-7",  # UTC+7
             },
         ]
-        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = mock_data  # noqa: E501
+        mock_reminders_response = MagicMock()
+        mock_reminders_response.data = [
+            {"user_settings_id": "settings-1", "time": "08:00:00"},
+            {"user_settings_id": "settings-1", "time": "20:00:00"},
+        ]
+
+        def table_side_effect(name: str) -> MagicMock:
+            mock_table = MagicMock()
+            if name == "user_settings":
+                mock_table.select.return_value.execute.return_value = mock_settings_response
+            elif name == "reminder_times":
+                mock_table.select.return_value.execute.return_value = mock_reminders_response
+            return mock_table
+
+        mock_supabase.table.side_effect = table_side_effect
 
         with patch("src.jobs.remind.get_supabase_client", return_value=mock_supabase):
             from src.jobs.remind import get_due_users
 
-            # 01:00 UTC = 08:00 Jakarta → should match reminder_time_1
+            # 01:00 UTC = 08:00 UTC+7 → should match
             fake_now = datetime(2026, 4, 16, 1, 0, tzinfo=UTC)
             result = get_due_users(now=fake_now)
 
         assert result == ["999"]
 
-    def test_skips_user_with_reminders_disabled(self, mock_supabase: MagicMock) -> None:
-        # The Supabase query filters by reminders_enabled=True,
-        # so disabled users won't appear in the response.
-        mock_result = mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value  # noqa: E501
-        mock_result.data = []
+    def test_user_with_no_reminders_is_not_returned(self, mock_supabase: MagicMock) -> None:
+        mock_settings_response = MagicMock()
+        mock_settings_response.data = [
+            {
+                "id": "settings-1",
+                "telegram_chat_id": "123456",
+                "timezone": "UTC",
+            },
+        ]
+        # No reminder_times rows for this user
+        mock_reminders_response = MagicMock()
+        mock_reminders_response.data = []
+
+        def table_side_effect(name: str) -> MagicMock:
+            mock_table = MagicMock()
+            if name == "user_settings":
+                mock_table.select.return_value.execute.return_value = mock_settings_response
+            elif name == "reminder_times":
+                mock_table.select.return_value.execute.return_value = mock_reminders_response
+            return mock_table
+
+        mock_supabase.table.side_effect = table_side_effect
 
         with patch("src.jobs.remind.get_supabase_client", return_value=mock_supabase):
             from src.jobs.remind import get_due_users

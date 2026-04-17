@@ -37,9 +37,9 @@ Keep it warm, concise, and grounded in the original quote."""
 def get_due_users(now: datetime | None = None) -> list[str]:
     """Find users whose reminder time matches the current hour.
 
-    Queries user_settings for users with reminders_enabled=True whose
-    reminder_time_1 or reminder_time_2 falls within the current hour,
-    accounting for each user's timezone.
+    Queries user_settings and reminder_times tables. For each user,
+    converts the current UTC time to the user's timezone and checks
+    if any of their reminder_times fall within that hour.
 
     Args:
         now: Override for the current time (for testing). Defaults to UTC now.
@@ -51,35 +51,45 @@ def get_due_users(now: datetime | None = None) -> list[str]:
         now = datetime.now(UTC)
 
     client = get_supabase_client()
-    response = (
-        client.table("user_settings")
-        .select("telegram_chat_id, reminder_time_1, reminder_time_2, timezone, reminders_enabled")
-        .eq("reminders_enabled", True)
-        .execute()
+
+    settings_response = (
+        client.table("user_settings").select("id, telegram_chat_id, timezone").execute()
     )
 
+    if not settings_response.data:
+        return []
+
+    # Build a map of user_settings_id → row
+    settings_by_id: dict[str, dict[str, str]] = {row["id"]: row for row in settings_response.data}
+
+    reminders_response = client.table("reminder_times").select("user_settings_id, time").execute()
+
+    # Group reminder times by user_settings_id
+    reminders_by_user: dict[str, list[str]] = {}
+    for row in reminders_response.data:
+        uid = row["user_settings_id"]
+        reminders_by_user.setdefault(uid, []).append(row["time"])
+
     due_users: list[str] = []
-    for row in response.data:
+    for settings_id, settings_row in settings_by_id.items():
         try:
-            user_tz = ZoneInfo(row["timezone"])
+            user_tz = ZoneInfo(settings_row["timezone"])
         except Exception:
             logger.warning(
                 "Invalid timezone '%s' for user %s, skipping",
-                row["timezone"],
-                row["telegram_chat_id"],
+                settings_row["timezone"],
+                settings_row["telegram_chat_id"],
             )
             continue
 
         user_now = now.astimezone(user_tz)
         current_hour = user_now.hour
 
-        for time_field in ("reminder_time_1", "reminder_time_2"):
-            raw = row[time_field]
-            # Supabase returns time as "HH:MM:SS" string
-            reminder_hour = int(raw.split(":")[0])
+        for time_str in reminders_by_user.get(settings_id, []):
+            reminder_hour = int(time_str.split(":")[0])
             if current_hour == reminder_hour:
-                due_users.append(row["telegram_chat_id"])
-                break  # Don't add same user twice if both times match
+                due_users.append(settings_row["telegram_chat_id"])
+                break
 
     return due_users
 
