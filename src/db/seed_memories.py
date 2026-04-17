@@ -52,8 +52,13 @@ async def seed_memories(
     failed_count = 0
 
     for i, entry in enumerate(data):
+        if not isinstance(entry, dict) or "content" not in entry:
+            failed_count += 1
+            if show_progress:
+                print(f"[{i + 1}/{len(data)}] ✗ Invalid entry (missing 'content')")
+            continue
         content = entry["content"]
-        summary = entry["summary"]
+        summary = entry.get("summary") or content
 
         # Try to save memory with retry logic
         succeeded = await _save_with_retry(content, summary)
@@ -72,7 +77,8 @@ async def seed_memories(
 
         # Rate limiting: wait 2 seconds between calls (except after last entry)
         if i < len(data) - 1:
-            print(f"Waiting 2 seconds before next call... ({i + 1}/{len(data)})")
+            if show_progress:
+                print(f"Waiting 2 seconds before next call... ({i + 1}/{len(data)})")
             await asyncio.sleep(2)
 
     if show_progress:
