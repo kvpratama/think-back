@@ -60,6 +60,7 @@ supabase migration new <migration_name>
 supabase start
 supabase migration up # Good for quickly applying a new file without losing local data.
 supabase db reset # Better for "quality assurance." It wipes the local DB, runs all migrations in order, and re-runs your seed.sql. This guarantees that a new developer joining your team (or your CI/CD pipeline) can set up the project without errors.
+supabase db reset --linked # Same as above but for the linked remote database.
 
 # Check which database migrations have been applied by querying the schema_migrations table
 SELECT version FROM supabase_migrations.schema_migrations;
@@ -67,8 +68,7 @@ SELECT version FROM supabase_migrations.schema_migrations;
 # 4. Push your changes to the remote database.
 supabase db push
 
-# 5. Remember to regenerate TypeScript definitions after each schema change
-supabase gen types typescript --local > lib/supabase/database.types.ts
+# 5. Remember to regenerate Python definitions after each schema change
 supabase gen types --lang=python --local > supabase/database_types.py
 
 # 6. Remember to regenerate schema.sql

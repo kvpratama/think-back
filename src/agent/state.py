@@ -25,7 +25,6 @@ class Memory(TypedDict):
     created_at: NotRequired[datetime.datetime]
     last_reviewed_at: NotRequired[datetime.datetime | None]
     review_count: NotRequired[int]
-    test_score_avg: NotRequired[float]
 
 
 class DuplicateMatch(TypedDict):
