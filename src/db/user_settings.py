@@ -3,9 +3,18 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import NotRequired, TypedDict
 
 from src.db.client import get_supabase_client
+
+
+class AddReminderResult(Enum):
+    """Result of add_reminder operation."""
+
+    SUCCESS = "success"
+    LIMIT_REACHED = "limit_reached"
+    DB_ERROR = "db_error"
 
 
 class ReminderRow(TypedDict):
@@ -112,7 +121,7 @@ def get_reminders(user_settings_id: str) -> list[ReminderRow]:
     return result.data
 
 
-def add_reminder(user_settings_id: str, time_str: str) -> bool:
+def add_reminder(user_settings_id: str, time_str: str) -> AddReminderResult | bool:
     """Add a reminder time for a user.
 
     Enforces the maximum of 5 reminders per user.
@@ -122,7 +131,9 @@ def add_reminder(user_settings_id: str, time_str: str) -> bool:
         time_str: The time string in HH:MM format.
 
     Returns:
-        True if added successfully, False if at max capacity.
+        AddReminderResult.SUCCESS (or True for backward compatibility),
+        AddReminderResult.LIMIT_REACHED if at max capacity,
+        AddReminderResult.DB_ERROR if upsert fails.
     """
     client = get_supabase_client()
     existing = (
@@ -132,7 +143,7 @@ def add_reminder(user_settings_id: str, time_str: str) -> bool:
         .execute()
     )
     if len(existing.data) >= MAX_REMINDERS:
-        return False
+        return AddReminderResult.LIMIT_REACHED
 
     result = (
         client.table("reminder_times")
@@ -142,7 +153,9 @@ def add_reminder(user_settings_id: str, time_str: str) -> bool:
         )
         .execute()
     )
-    return len(result.data) > 0
+    if len(result.data) > 0:
+        return True
+    return AddReminderResult.DB_ERROR
 
 
 def remove_reminder(reminder_id: str) -> None:

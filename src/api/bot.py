@@ -29,7 +29,7 @@ from src.api.bot_commands import (
     start_command,
     timezone_command,
 )
-from src.api.bot_graph import _get_graph
+from src.api.bot_graph import get_graph
 from src.api.bot_helpers import truncate_for_telegram
 from src.core.config import get_settings
 
@@ -72,7 +72,7 @@ async def handle_message(
 
     sent_message = await update.message.reply_text("Thinking... 🧠")
 
-    graph = _get_graph(context)
+    graph = get_graph(context)
     thread_id = f"{chat.id}_{user_id}"
     config = RunnableConfig({"configurable": {"thread_id": thread_id}})
 

@@ -16,7 +16,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes
 
-from src.api.bot_graph import _get_graph
+from src.api.bot_graph import get_graph
 from src.api.bot_helpers import truncate_for_telegram
 from src.api.bot_keyboards import (
     build_hour_picker_keyboard,
@@ -102,13 +102,25 @@ async def handle_callback(
         hour = int(parts[1])
         user_settings_id = parts[2]
         time_str = f"{hour:02d}:00"
-        added = await asyncio.to_thread(add_reminder, user_settings_id, time_str)
-        if not added:
+        result = await asyncio.to_thread(add_reminder, user_settings_id, time_str)
+
+        # Handle discriminated result
+        from src.db.user_settings import AddReminderResult
+
+        if result == AddReminderResult.LIMIT_REACHED:
             try:
                 await query.edit_message_text(text="⚠️ Maximum 5 reminders reached.")
             except TelegramError:
                 logger.exception("Failed to edit max reminders message")
             return
+
+        if result == AddReminderResult.DB_ERROR:
+            try:
+                await query.edit_message_text(text="❌ Couldn't add reminder.")
+            except TelegramError:
+                logger.exception("Failed to edit DB error message")
+            return
+
         reminders = await asyncio.to_thread(get_reminders, user_settings_id)
         text, keyboard = build_reminders_message(reminders, user_settings_id)
         try:
@@ -118,10 +130,13 @@ async def handle_callback(
         return
 
     # Save confirmation: callback_data = "save_yes|<thread_id>" or "save_no|<thread_id>"
+    if action not in ("save_yes", "save_no"):
+        return
+
     thread_id = parts[1] if len(parts) > 1 else ""
     approved = action == "save_yes"
 
-    graph = _get_graph(context)
+    graph = get_graph(context)
     config = RunnableConfig({"configurable": {"thread_id": thread_id}})
 
     try:

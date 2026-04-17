@@ -213,3 +213,78 @@ async def test_handle_callback_add_reminder_hour_saves(
         ),
     )
     assert "14:00" in text
+
+
+async def test_handle_callback_add_reminder_shows_limit_reached_message(
+    mock_context: MagicMock,
+) -> None:
+    """Test that limit reached shows specific message."""
+    from src.api.bot_callbacks import handle_callback
+    from src.db.user_settings import AddReminderResult
+
+    mock_query = MagicMock()
+    mock_query.data = "add_hr|14|aaa"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.message = MagicMock()
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    with patch("src.api.bot_callbacks.add_reminder", return_value=AddReminderResult.LIMIT_REACHED):
+        await handle_callback(mock_upd, mock_context)
+
+    mock_query.edit_message_text.assert_called_once()
+    text = mock_query.edit_message_text.call_args.kwargs.get("text", "")
+    assert "Maximum 5 reminders reached" in text
+
+
+async def test_handle_callback_add_reminder_shows_db_error_message(
+    mock_context: MagicMock,
+) -> None:
+    """Test that DB error shows generic error message."""
+    from src.api.bot_callbacks import handle_callback
+    from src.db.user_settings import AddReminderResult
+
+    mock_query = MagicMock()
+    mock_query.data = "add_hr|14|aaa"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.message = MagicMock()
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    with patch("src.api.bot_callbacks.add_reminder", return_value=AddReminderResult.DB_ERROR):
+        await handle_callback(mock_upd, mock_context)
+
+    mock_query.edit_message_text.assert_called_once()
+    text = mock_query.edit_message_text.call_args.kwargs.get("text", "")
+    assert "Couldn't add reminder" in text
+
+
+async def test_handle_callback_unknown_action_does_not_invoke_graph(
+    mock_context: MagicMock,
+) -> None:
+    """Test that unknown callback actions do not trigger graph.ainvoke."""
+    from src.api.bot_callbacks import handle_callback
+
+    mock_query = MagicMock()
+    mock_query.data = "unknown_action|thread123"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    mock_graph = MagicMock()
+    mock_graph.ainvoke = AsyncMock()
+    mock_context.bot_data["graph"] = mock_graph
+
+    await handle_callback(mock_upd, mock_context)
+
+    # Unknown actions should NOT trigger graph.ainvoke
+    mock_graph.ainvoke.assert_not_called()

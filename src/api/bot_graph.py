@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from telegram.ext import ContextTypes
 
 
-def _get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
+def get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
     """Lazily build and cache the agent graph in bot_data.
 
     Args:

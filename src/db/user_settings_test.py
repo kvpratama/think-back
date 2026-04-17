@@ -173,15 +173,15 @@ class TestAddReminder:
         assert result is True
 
     def test_rejects_when_at_max(self, mock_supabase: MagicMock) -> None:
+        from src.db.user_settings import AddReminderResult, add_reminder
+
         chain = mock_supabase.table.return_value.select.return_value.eq.return_value
         chain.execute.return_value.data = [{"id": f"r{i}"} for i in range(5)]
 
         with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
-            from src.db.user_settings import add_reminder
-
             result = add_reminder("aaa", "14:00")
 
-        assert result is False
+        assert result == AddReminderResult.LIMIT_REACHED
         mock_supabase.table.return_value.insert.assert_not_called()
 
     def test_handles_duplicate_time_idempotently(self, mock_supabase: MagicMock) -> None:
@@ -200,6 +200,29 @@ class TestAddReminder:
         mock_supabase.table.return_value.upsert.assert_called_once_with(
             {"user_settings_id": "aaa", "time": "12:00"}, on_conflict="user_settings_id,time"
         )
+
+    def test_returns_limit_reached_when_at_max_capacity(self, mock_supabase: MagicMock) -> None:
+        from src.db.user_settings import AddReminderResult, add_reminder
+
+        chain = mock_supabase.table.return_value.select.return_value.eq.return_value
+        chain.execute.return_value.data = [{"id": f"r{i}"} for i in range(5)]
+
+        with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
+            result = add_reminder("aaa", "14:00")
+
+        assert result == AddReminderResult.LIMIT_REACHED
+
+    def test_returns_db_error_when_upsert_fails(self, mock_supabase: MagicMock) -> None:
+        from src.db.user_settings import AddReminderResult, add_reminder
+
+        chain = mock_supabase.table.return_value.select.return_value.eq.return_value
+        chain.execute.return_value.data = [{"id": "r1"}]
+        mock_supabase.table.return_value.upsert.return_value.execute.return_value.data = []
+
+        with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
+            result = add_reminder("aaa", "14:00")
+
+        assert result == AddReminderResult.DB_ERROR
 
 
 class TestRemoveReminder:
