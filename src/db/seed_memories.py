@@ -13,9 +13,11 @@ from src.db.vector_store import save_memory
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_SEED_FILE = "src/db/seed.json"
+
 
 async def seed_memories(
-    file_path: str = "src/db/seed.json",
+    file_path: str = DEFAULT_SEED_FILE,
     show_progress: bool = False,
 ) -> dict[str, int]:
     """Import memories from JSON file into the database.
@@ -26,7 +28,7 @@ async def seed_memories(
 
     Args:
         file_path: Path to the JSON file containing memories. Each entry should
-            have 'content' and 'summary' fields. Defaults to "src/db/seed.json".
+            have 'content' and 'summary' fields. Defaults to DEFAULT_SEED_FILE.
         show_progress: Whether to print progress to stdout. Defaults to False.
 
     Returns:
@@ -111,7 +113,7 @@ async def main() -> None:
     """Main entry point for the CLI script."""
     logging.basicConfig(level=logging.INFO)
 
-    file_path = sys.argv[1] if len(sys.argv) > 1 else "src/db/seed.json"
+    file_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SEED_FILE
 
     result = await seed_memories(file_path, show_progress=True)
 

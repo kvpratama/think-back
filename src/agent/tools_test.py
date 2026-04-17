@@ -20,7 +20,7 @@ async def test_search_memories_tool_returns_formatted_results() -> None:
 
         assert "Consistency beats intensity" in result
         assert "Identity drives habits" in result
-        mock_search.assert_called_once_with("habits", top_k=3)
+        mock_search.assert_called_once_with("habits", top_k=5)
 
 
 async def test_search_memories_tool_handles_no_results() -> None:
