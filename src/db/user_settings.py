@@ -53,7 +53,7 @@ def get_user_settings_id(telegram_chat_id: str) -> str | None:
 
 
 def insert_default_reminders(user_settings_id: str) -> None:
-    """Insert default reminder times (08:00 and 20:00) for a new user.
+    """Insert default reminder times (12:00) for a new user.
 
     Args:
         user_settings_id: The user_settings UUID.

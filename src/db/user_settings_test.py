@@ -61,8 +61,7 @@ class TestInsertDefaultReminders:
 
     def test_inserts_two_default_reminder_times(self, mock_supabase: MagicMock) -> None:
         mock_supabase.table.return_value.insert.return_value.execute.return_value.data = [
-            {"id": "r1", "user_settings_id": "aaa", "time": "08:00:00"},
-            {"id": "r2", "user_settings_id": "aaa", "time": "20:00:00"},
+            {"id": "r1", "user_settings_id": "aaa", "time": "12:00:00"},
         ]
 
         with patch("src.db.user_settings.get_supabase_client", return_value=mock_supabase):
@@ -71,9 +70,8 @@ class TestInsertDefaultReminders:
             insert_default_reminders("aaa")
 
         insert_call = mock_supabase.table.return_value.insert.call_args[0][0]
-        assert len(insert_call) == 2
-        times = {row["time"] for row in insert_call}
-        assert times == {"08:00", "20:00"}
+        assert len(insert_call) == 1
+        assert insert_call[0]["time"] == "12:00"
 
 
 class TestUpdateTimezone:
