@@ -30,3 +30,10 @@ create policy "deny anon access to user_settings"
   for all
   to anon
   using (false);
+
+-- reminder_times
+create policy "deny anon access to reminder_times"
+  on public.reminder_times
+  for all
+  to anon
+  using (false);

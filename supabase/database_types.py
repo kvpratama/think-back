@@ -72,34 +72,40 @@ class PublicMemoriesUpdate(TypedDict):
     source: NotRequired[Annotated[Optional[str], Field(alias="source")]]
 
 class PublicUserSettings(BaseModel):
-    confirm_before_save: bool = Field(alias="confirm_before_save")
     created_at: datetime.datetime = Field(alias="created_at")
     id: uuid.UUID = Field(alias="id")
-    reminder_time_1: datetime.time = Field(alias="reminder_time_1")
-    reminder_time_2: datetime.time = Field(alias="reminder_time_2")
-    reminders_enabled: bool = Field(alias="reminders_enabled")
     telegram_chat_id: str = Field(alias="telegram_chat_id")
     timezone: str = Field(alias="timezone")
     updated_at: datetime.datetime = Field(alias="updated_at")
 
 class PublicUserSettingsInsert(TypedDict):
-    confirm_before_save: NotRequired[Annotated[bool, Field(alias="confirm_before_save")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
-    reminder_time_1: NotRequired[Annotated[datetime.time, Field(alias="reminder_time_1")]]
-    reminder_time_2: NotRequired[Annotated[datetime.time, Field(alias="reminder_time_2")]]
-    reminders_enabled: NotRequired[Annotated[bool, Field(alias="reminders_enabled")]]
     telegram_chat_id: Annotated[str, Field(alias="telegram_chat_id")]
     timezone: NotRequired[Annotated[str, Field(alias="timezone")]]
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
 
 class PublicUserSettingsUpdate(TypedDict):
-    confirm_before_save: NotRequired[Annotated[bool, Field(alias="confirm_before_save")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
-    reminder_time_1: NotRequired[Annotated[datetime.time, Field(alias="reminder_time_1")]]
-    reminder_time_2: NotRequired[Annotated[datetime.time, Field(alias="reminder_time_2")]]
-    reminders_enabled: NotRequired[Annotated[bool, Field(alias="reminders_enabled")]]
     telegram_chat_id: NotRequired[Annotated[str, Field(alias="telegram_chat_id")]]
     timezone: NotRequired[Annotated[str, Field(alias="timezone")]]
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
+
+class PublicReminderTimes(BaseModel):
+    created_at: datetime.datetime = Field(alias="created_at")
+    id: uuid.UUID = Field(alias="id")
+    time: datetime.time = Field(alias="time")
+    user_settings_id: uuid.UUID = Field(alias="user_settings_id")
+
+class PublicReminderTimesInsert(TypedDict):
+    created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
+    id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
+    time: Annotated[datetime.time, Field(alias="time")]
+    user_settings_id: Annotated[uuid.UUID, Field(alias="user_settings_id")]
+
+class PublicReminderTimesUpdate(TypedDict):
+    created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
+    id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
+    time: NotRequired[Annotated[datetime.time, Field(alias="time")]]
+    user_settings_id: NotRequired[Annotated[uuid.UUID, Field(alias="user_settings_id")]]

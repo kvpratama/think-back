@@ -5,18 +5,11 @@ This module handles the Telegram bot commands and message routing.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from langchain_core.runnables import RunnableConfig
-
-if TYPE_CHECKING:
-    from langgraph.graph.state import CompiledStateGraph
-
 import logging
 import time
 
 from dotenv import load_dotenv
-from langgraph.checkpoint.memory import InMemorySaver
+from langchain_core.runnables import RunnableConfig
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
@@ -29,6 +22,14 @@ from telegram.ext import (
     filters,
 )
 
+from src.api.bot_callbacks import handle_callback
+from src.api.bot_commands import (
+    help_command,
+    reminders_command,
+    start_command,
+    timezone_command,
+)
+from src.api.bot_graph import get_graph
 from src.api.bot_helpers import truncate_for_telegram
 from src.core.config import get_settings
 
@@ -37,42 +38,18 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-def _get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
-    """Lazily build and cache the agent graph in bot_data.
-
-    Args:
-        context: The Telegram context whose bot_data stores the graph.
-
-    Returns:
-        Compiled LangGraph instance.
-    """
-    if "graph" not in context.bot_data:
-        from src.agent.graph import build_graph
-
-        context.bot_data["saver"] = InMemorySaver()
-        context.bot_data["graph"] = build_graph(
-            checkpointer=context.bot_data["saver"],
-        )
-    return context.bot_data["graph"]
-
-
-async def start_command(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-) -> None:
-    """Handle the /start command.
+async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle unknown commands.
 
     Args:
         update: The Telegram update.
         context: The Telegram context.
     """
-    await update.message.reply_text(  # type: ignore[union-attr]
-        "Welcome to ThinkBack! 🧠\n\n"
-        "Just type naturally:\n"
-        "• Share insights and I'll offer to save them\n"
-        "• Ask questions about your saved knowledge\n"
-        "• Or just chat!"
-    )
+    if not update.message or not update.message.from_user:
+        logger.debug("unknown_command invoked without message/from_user; skipping")
+        return
+
+    await update.message.reply_text("Unknown command. Use /help to see available commands.")
 
 
 async def handle_message(
@@ -86,6 +63,7 @@ async def handle_message(
         context: The Telegram context.
     """
     if not update.message or not update.message.from_user:
+        logger.debug("handle_message invoked without message/from_user; skipping")
         return
 
     user_input = update.message.text
@@ -94,7 +72,7 @@ async def handle_message(
 
     sent_message = await update.message.reply_text("Thinking... 🧠")
 
-    graph = _get_graph(context)
+    graph = get_graph(context)
     thread_id = f"{chat.id}_{user_id}"
     config = RunnableConfig({"configurable": {"thread_id": thread_id}})
 
@@ -218,56 +196,6 @@ async def handle_message(
                 )
 
 
-async def handle_callback(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-) -> None:
-    """Handle inline button callbacks for save confirmation.
-
-    Args:
-        update: The Telegram update containing the callback query.
-        context: The Telegram context.
-    """
-    query = update.callback_query
-    if not query or not query.data:
-        return
-
-    await query.answer()
-
-    parts = query.data.split("|", 1)
-    action = parts[0]
-    thread_id = parts[1] if len(parts) > 1 else ""
-
-    approved = action == "save_yes"
-
-    graph = _get_graph(context)
-    config = RunnableConfig({"configurable": {"thread_id": thread_id}})
-
-    from langgraph.types import Command
-
-    try:
-        result = await graph.ainvoke(
-            Command(resume={"approved": approved}),
-            config=config,
-        )
-
-        messages = result.get("messages", [])
-        response = messages[-1].content if messages and hasattr(messages[-1], "content") else ""
-        response = response or ("Memory saved! ✅" if approved else "Save cancelled. ❌")
-
-    except Exception:
-        logger.exception("Error processing callback")
-        response = "Sorry, something went wrong."
-
-    try:
-        await query.edit_message_text(
-            text=truncate_for_telegram(response),
-            parse_mode=ParseMode.HTML,
-        )
-    except TelegramError:
-        logger.exception("Failed to edit callback message")
-
-
 def create_application() -> Application:
     """Create and configure the Telegram bot application.
 
@@ -281,6 +209,10 @@ def create_application() -> Application:
     )
 
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("timezone", timezone_command))
+    application.add_handler(CommandHandler("reminders", reminders_command))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(CallbackQueryHandler(handle_callback))
 

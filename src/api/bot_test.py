@@ -40,6 +40,7 @@ def mock_context() -> MagicMock:
     """Create a mock Telegram Context."""
     context = MagicMock()
     context.bot = AsyncMock()
+    context.bot_data = {}
     return context
 
 
@@ -65,22 +66,13 @@ async def test_handle_message_natural_language(
     mock_graph.astream_events = mock_astream
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_message(mock_update, mock_context)
+    mock_context.bot_data["graph"] = mock_graph
 
-        assert mock_update.message is not None
-        cast(Any, mock_update.message.reply_text).assert_called_once()
-        mock_context.bot.edit_message_text.assert_called()
-
-
-async def test_start_command(mock_update: Update, mock_context: MagicMock) -> None:
-    """Test that start_command sends welcome message."""
-    from src.api.bot import start_command
-
-    await start_command(mock_update, mock_context)
+    await handle_message(mock_update, mock_context)
 
     assert mock_update.message is not None
     cast(Any, mock_update.message.reply_text).assert_called_once()
+    mock_context.bot.edit_message_text.assert_called()
 
 
 async def test_create_application_registers_handlers() -> None:
@@ -128,75 +120,13 @@ async def test_handle_message_interrupt_not_overwritten(
     mock_graph.astream_events = mock_astream
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_message(mock_update, mock_context)
+    mock_context.bot_data["graph"] = mock_graph
 
-        # The last edit_message_text call should be the confirmation UI, not the accumulated text.
-        last_call = mock_context.bot.edit_message_text.call_args
-        assert "Save this insight?" in last_call.kwargs.get("text", last_call[1].get("text", ""))
+    await handle_message(mock_update, mock_context)
 
-
-@pytest.fixture
-def mock_callback_update(mock_user: MagicMock) -> Update:
-    """Create a mock Telegram Update with callback query."""
-    mock_query = MagicMock()
-    mock_query.data = "save_yes|67890_12345"
-    mock_query.answer = AsyncMock()
-    mock_query.edit_message_text = AsyncMock()
-    mock_query.from_user = mock_user
-
-    mock_update = MagicMock(spec=Update)
-    mock_update.callback_query = mock_query
-    mock_update.message = None
-
-    return mock_update
-
-
-async def test_handle_callback_approved(
-    mock_callback_update: Update,
-    mock_context: MagicMock,
-) -> None:
-    """Test that approved callback resumes graph and saves memory."""
-    from src.api.bot import handle_callback
-
-    mock_graph = MagicMock()
-    mock_result_msg = MagicMock()
-    mock_result_msg.content = "Memory saved: Motivation follows action"
-    mock_graph.ainvoke = AsyncMock(return_value={"messages": [mock_result_msg]})
-
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_callback(mock_callback_update, mock_context)
-
-        mock_graph.ainvoke.assert_called_once()
-        call_args = mock_graph.ainvoke.call_args
-        command = call_args[0][0]
-        assert command.resume == {"approved": True}
-
-        assert mock_callback_update.callback_query is not None
-        cast(Any, mock_callback_update.callback_query.edit_message_text).assert_called_once()
-
-
-async def test_handle_callback_cancelled(
-    mock_callback_update: Update,
-    mock_context: MagicMock,
-) -> None:
-    """Test that cancelled callback resumes graph without saving."""
-    from src.api.bot import handle_callback
-
-    assert mock_callback_update.callback_query is not None
-    cast(Any, mock_callback_update.callback_query).data = "save_no|67890_12345"
-
-    mock_graph = MagicMock()
-    mock_result_msg = MagicMock()
-    mock_result_msg.content = "Save cancelled."
-    mock_graph.ainvoke = AsyncMock(return_value={"messages": [mock_result_msg]})
-
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_callback(mock_callback_update, mock_context)
-
-        call_args = mock_graph.ainvoke.call_args
-        command = call_args[0][0]
-        assert command.resume == {"approved": False}
+    # The last edit_message_text call should be the confirmation UI, not the accumulated text.
+    last_call = mock_context.bot.edit_message_text.call_args
+    assert "Save this insight?" in last_call.kwargs.get("text", last_call[1].get("text", ""))
 
 
 async def test_handle_message_interrupt_shows_duplicates(
@@ -237,14 +167,15 @@ async def test_handle_message_interrupt_shows_duplicates(
     mock_graph.astream_events = mock_astream
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_message(mock_update, mock_context)
+    mock_context.bot_data["graph"] = mock_graph
 
-        last_call = mock_context.bot.edit_message_text.call_args
-        text = last_call.kwargs.get("text", last_call[1].get("text", ""))
-        assert "Exercise is good" in text
-        assert "Working out is healthy" in text
-        assert "Similar" in text or "Duplicate" in text or "duplicate" in text
+    await handle_message(mock_update, mock_context)
+
+    last_call = mock_context.bot.edit_message_text.call_args
+    text = last_call.kwargs.get("text", last_call[1].get("text", ""))
+    assert "Exercise is good" in text
+    assert "Working out is healthy" in text
+    assert "Similar" in text or "Duplicate" in text or "duplicate" in text
 
 
 async def test_handle_message_interrupt_no_duplicates(
@@ -278,10 +209,23 @@ async def test_handle_message_interrupt_no_duplicates(
     mock_graph.astream_events = mock_astream
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
-    with patch("src.api.bot._get_graph", return_value=mock_graph):
-        await handle_message(mock_update, mock_context)
+    mock_context.bot_data["graph"] = mock_graph
 
-        last_call = mock_context.bot.edit_message_text.call_args
-        text = last_call.kwargs.get("text", last_call[1].get("text", ""))
-        assert "Save this insight?" in text
-        assert "duplicate" not in text.lower()
+    await handle_message(mock_update, mock_context)
+
+    last_call = mock_context.bot.edit_message_text.call_args
+    text = last_call.kwargs.get("text", last_call[1].get("text", ""))
+    assert "Save this insight?" in text
+    assert "duplicate" not in text.lower()
+
+
+async def test_unknown_command(mock_update: Update, mock_context: MagicMock) -> None:
+    """Test that unknown commands receive a helpful error message."""
+    from src.api.bot import unknown_command
+
+    await unknown_command(mock_update, mock_context)
+
+    assert mock_update.message is not None
+    cast(Any, mock_update.message.reply_text).assert_called_once_with(
+        "Unknown command. Use /help to see available commands."
+    )
