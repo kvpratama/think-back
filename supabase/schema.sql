@@ -67,7 +67,8 @@ CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA "extensions";
 
 
 CREATE OR REPLACE FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector", "filter" "jsonb" DEFAULT '{}'::"jsonb", "match_count" integer DEFAULT 5) RETURNS TABLE("id" "uuid", "content" "text", "metadata" "jsonb", "similarity" double precision)
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 #variable_conflict use_column
 begin
@@ -99,7 +100,8 @@ ALTER FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector"
 
 
 CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
 begin
   new.updated_at = now();
@@ -130,14 +132,21 @@ CREATE TABLE IF NOT EXISTS "public"."memories" (
 ALTER TABLE "public"."memories" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."reminder_times" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_settings_id" "uuid" NOT NULL,
+    "time" time without time zone NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."reminder_times" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."user_settings" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "telegram_chat_id" "text" NOT NULL,
-    "reminder_time_1" time without time zone DEFAULT '08:00:00'::time without time zone NOT NULL,
-    "reminder_time_2" time without time zone DEFAULT '20:00:00'::time without time zone NOT NULL,
     "timezone" "text" DEFAULT 'UTC'::"text" NOT NULL,
-    "reminders_enabled" boolean DEFAULT true NOT NULL,
-    "confirm_before_save" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
@@ -148,6 +157,16 @@ ALTER TABLE "public"."user_settings" OWNER TO "postgres";
 
 ALTER TABLE ONLY "public"."memories"
     ADD CONSTRAINT "memories_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."reminder_times"
+    ADD CONSTRAINT "reminder_times_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."reminder_times"
+    ADD CONSTRAINT "uq_user_reminder_time" UNIQUE ("user_settings_id", "time");
 
 
 
@@ -177,7 +196,16 @@ CREATE OR REPLACE TRIGGER "user_settings_set_updated_at" BEFORE UPDATE ON "publi
 
 
 
+ALTER TABLE ONLY "public"."reminder_times"
+    ADD CONSTRAINT "reminder_times_user_settings_id_fkey" FOREIGN KEY ("user_settings_id") REFERENCES "public"."user_settings"("id") ON DELETE CASCADE;
+
+
+
 CREATE POLICY "deny anon access to memories" ON "public"."memories" TO "anon" USING (false);
+
+
+
+CREATE POLICY "deny anon access to reminder_times" ON "public"."reminder_times" TO "anon" USING (false);
 
 
 
@@ -186,6 +214,9 @@ CREATE POLICY "deny anon access to user_settings" ON "public"."user_settings" TO
 
 
 ALTER TABLE "public"."memories" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."reminder_times" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."user_settings" ENABLE ROW LEVEL SECURITY;
@@ -743,6 +774,12 @@ GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
 GRANT ALL ON TABLE "public"."memories" TO "anon";
 GRANT ALL ON TABLE "public"."memories" TO "authenticated";
 GRANT ALL ON TABLE "public"."memories" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."reminder_times" TO "anon";
+GRANT ALL ON TABLE "public"."reminder_times" TO "authenticated";
+GRANT ALL ON TABLE "public"."reminder_times" TO "service_role";
 
 
 
