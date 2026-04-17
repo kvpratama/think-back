@@ -61,8 +61,7 @@ def insert_default_reminders(user_settings_id: str) -> None:
     client = get_supabase_client()
     client.table("reminder_times").insert(
         [
-            {"user_settings_id": user_settings_id, "time": "08:00"},
-            {"user_settings_id": user_settings_id, "time": "20:00"},
+            {"user_settings_id": user_settings_id, "time": "12:00"},
         ]
     ).execute()
 

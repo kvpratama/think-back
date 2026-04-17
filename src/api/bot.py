@@ -172,11 +172,26 @@ async def start_command(
     is_new = upsert_user_settings(chat_id)
 
     await update.message.reply_text(  # type: ignore[union-attr]
-        "Welcome to ThinkBack! 🧠\n\n"
-        "Just type naturally:\n"
-        "• Share insights and I'll offer to save them\n"
-        "• Ask questions about your saved knowledge\n"
-        "• Or just chat!"
+        """🧠 <b>Welcome to ThinkBack</b>
+
+Your space to capture ideas, revisit them, and actually remember what matters.
+
+<b>Here's how you can use this space:</b>
+• 💡 Share an insight → I'll help you save it
+• 🔍 Ask questions → I'll search your saved knowledge
+• 💬 Just chat → I'm here for that too
+
+<b>⏰ Spaced Repetition</b>
+Saved insights come back to you later (default is 12:00 noon) with reflections to strengthen your memory.
+You can customize reminder times anytime with /reminders.
+
+<b>Quick setup:</b>
+• 🌍 Set your timezone: /timezone
+• ❓ See all commands: /help
+
+Start by sharing your first thought 👇
+""",  # noqa: E501
+        parse_mode=ParseMode.HTML,
     )
 
     if is_new:
@@ -253,13 +268,20 @@ async def help_command(
         context: The Telegram context.
     """
     await update.message.reply_text(  # type: ignore[union-attr]
-        "📚 <b>Available commands:</b>\n\n"
-        "/start — Set up your account\n"
-        "/timezone — Change your UTC offset\n"
-        "/reminders — Manage reminder times\n"
-        "/help — Show this message\n\n"
-        "Or just type naturally to chat, save insights, "
-        "or search your saved knowledge!",
+        """📚 <b>Help & Commands</b>
+
+<b>Core commands</b>
+/start — Get started or reset your intro
+/timezone — Set your local timezone
+/reminders — Customize when insights resurface
+/help — Show this guide
+
+<b>How to use ThinkBack</b>
+• 💡 Share an insight → I'll help you save it
+• 🔍 Ask a question → I'll answer using your saved insights
+
+What do you want to try first?
+""",
         parse_mode=ParseMode.HTML,
     )
 
