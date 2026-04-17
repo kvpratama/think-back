@@ -27,12 +27,12 @@ async def search_memories_tool(query: str = "") -> str:
     if not query:
         return "Please provide a search query."
 
-    results = await db_search_memories(query, top_k=3)
+    results = await db_search_memories(query, top_k=5)
 
     if not results:
         return "No saved memories found for this topic."
 
-    lines = [f"• {m['content']}" for m in results]
+    lines = [f"• {m['content']} (similarity: {m['similarity']:.2f})" for m in results]
     return "Here are the relevant memories:\n" + "\n".join(lines)
 
 
