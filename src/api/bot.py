@@ -31,6 +31,12 @@ from telegram.ext import (
 
 from src.api.bot_helpers import truncate_for_telegram
 from src.core.config import get_settings
+from src.db.user_settings import (
+    get_user_settings_id,
+    insert_default_reminders,
+    update_timezone,
+    upsert_user_settings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +62,44 @@ def _get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
     return context.bot_data["graph"]
 
 
+def _build_timezone_keyboard(chat_id: int) -> InlineKeyboardMarkup:
+    """Build an inline keyboard with UTC offset buttons.
+
+    Args:
+        chat_id: The Telegram chat ID to encode in callback data.
+
+    Returns:
+        InlineKeyboardMarkup with UTC offset buttons.
+    """
+    rows: list[list[InlineKeyboardButton]] = []
+    offsets = list(range(-12, 15))  # UTC-12 through UTC+14
+    row: list[InlineKeyboardButton] = []
+    for offset in offsets:
+        label = f"UTC{offset:+d}" if offset != 0 else "UTC+0"
+        row.append(InlineKeyboardButton(label, callback_data=f"tz|{offset}|{chat_id}"))
+        if len(row) == 4:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return InlineKeyboardMarkup(rows)
+
+
 async def start_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     """Handle the /start command.
 
+    Upserts user settings and shows a timezone picker for new users.
+
     Args:
         update: The Telegram update.
         context: The Telegram context.
     """
+    chat_id = str(update.message.chat.id)  # type: ignore[union-attr]
+    is_new = upsert_user_settings(chat_id)
+
     await update.message.reply_text(  # type: ignore[union-attr]
         "Welcome to ThinkBack! 🧠\n\n"
         "Just type naturally:\n"
@@ -73,6 +107,17 @@ async def start_command(
         "• Ask questions about your saved knowledge\n"
         "• Or just chat!"
     )
+
+    if is_new:
+        user_settings_id = get_user_settings_id(chat_id)
+        if user_settings_id:
+            insert_default_reminders(user_settings_id)
+
+        keyboard = _build_timezone_keyboard(update.message.chat.id)  # type: ignore[union-attr]
+        await update.message.reply_text(  # type: ignore[union-attr]
+            "🌍 What's your UTC offset?",
+            reply_markup=keyboard,
+        )
 
 
 async def handle_message(
@@ -234,10 +279,28 @@ async def handle_callback(
 
     await query.answer()
 
-    parts = query.data.split("|", 1)
+    parts = query.data.split("|")
     action = parts[0]
-    thread_id = parts[1] if len(parts) > 1 else ""
 
+    if action == "tz":
+        # Timezone selection: callback_data = "tz|<offset>|<chat_id>"
+        offset = int(parts[1])
+        chat_id = parts[2]
+        # POSIX convention: Etc/GMT-7 means UTC+7 (inverted sign)
+        if offset == 0:
+            tz_str = "UTC"
+        else:
+            tz_str = f"Etc/GMT{-offset:+d}"
+        update_timezone(chat_id, tz_str)
+        label = f"UTC{offset:+d}" if offset != 0 else "UTC+0"
+        try:
+            await query.edit_message_text(text=f"Timezone set to {label} ✅")
+        except TelegramError:
+            logger.exception("Failed to edit timezone message")
+        return
+
+    # Save confirmation: callback_data = "save_yes|<thread_id>" or "save_no|<thread_id>"
+    thread_id = parts[1] if len(parts) > 1 else ""
     approved = action == "save_yes"
 
     graph = _get_graph(context)

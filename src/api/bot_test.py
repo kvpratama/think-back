@@ -77,7 +77,12 @@ async def test_start_command(mock_update: Update, mock_context: MagicMock) -> No
     """Test that start_command sends welcome message."""
     from src.api.bot import start_command
 
-    await start_command(mock_update, mock_context)
+    with (
+        patch("src.api.bot.upsert_user_settings", return_value=False),
+        patch("src.api.bot.get_user_settings_id", return_value="aaa"),
+        patch("src.api.bot.insert_default_reminders"),
+    ):
+        await start_command(mock_update, mock_context)
 
     assert mock_update.message is not None
     cast(Any, mock_update.message.reply_text).assert_called_once()
@@ -285,3 +290,72 @@ async def test_handle_message_interrupt_no_duplicates(
         text = last_call.kwargs.get("text", last_call[1].get("text", ""))
         assert "Save this insight?" in text
         assert "duplicate" not in text.lower()
+
+
+async def test_start_command_upserts_settings_and_shows_timezone_picker(
+    mock_update: Update, mock_context: MagicMock
+) -> None:
+    """Test that /start upserts user settings and shows timezone keyboard for new users."""
+    from src.api.bot import start_command
+
+    with (
+        patch("src.api.bot.upsert_user_settings", return_value=True) as mock_upsert,
+        patch("src.api.bot.get_user_settings_id", return_value="aaa-bbb"),
+        patch("src.api.bot.insert_default_reminders") as mock_reminders,
+    ):
+        await start_command(mock_update, mock_context)
+
+    mock_upsert.assert_called_once_with("67890")
+    mock_reminders.assert_called_once_with("aaa-bbb")
+
+    # Should have two reply_text calls: welcome message + timezone picker
+    assert mock_update.message is not None
+    calls = cast(Any, mock_update.message.reply_text).call_args_list
+    assert len(calls) == 2
+
+    # Second call should have inline keyboard with UTC offsets
+    tz_call_kwargs = calls[1].kwargs if calls[1].kwargs else {}
+    assert "reply_markup" in tz_call_kwargs
+
+
+async def test_start_command_existing_user_no_timezone_picker(
+    mock_update: Update, mock_context: MagicMock
+) -> None:
+    """Test that /start for existing user does not show timezone picker or insert reminders."""
+    from src.api.bot import start_command
+
+    with (
+        patch("src.api.bot.upsert_user_settings", return_value=False),
+        patch("src.api.bot.get_user_settings_id", return_value="aaa-bbb"),
+        patch("src.api.bot.insert_default_reminders") as mock_reminders,
+    ):
+        await start_command(mock_update, mock_context)
+
+    mock_reminders.assert_not_called()
+
+    assert mock_update.message is not None
+    calls = cast(Any, mock_update.message.reply_text).call_args_list
+    assert len(calls) == 1  # Only welcome message
+
+
+async def test_handle_timezone_callback(
+    mock_context: MagicMock,
+) -> None:
+    """Test that timezone callback updates the user's timezone."""
+    from src.api.bot import handle_callback
+
+    mock_query = MagicMock()
+    mock_query.data = "tz|7|67890"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+
+    mock_update = MagicMock(spec=Update)
+    mock_update.callback_query = mock_query
+    mock_update.message = None
+
+    with patch("src.api.bot.update_timezone") as mock_update_tz:
+        await handle_callback(mock_update, mock_context)
+
+    # UTC+7 → Etc/GMT-7 (POSIX inverts the sign)
+    mock_update_tz.assert_called_once_with("67890", "Etc/GMT-7")
+    mock_query.edit_message_text.assert_called_once()
