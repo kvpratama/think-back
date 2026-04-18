@@ -13,7 +13,7 @@ dependencies = [
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.2.2",
-    "python-telegram-bot>=22.7",
+    "python-telegram-bot[webhooks]>=22.7",
     "supabase==2.18.1", # Temporary downgrade supabase until langchain-community has new update > 0.4.1
 ]
 

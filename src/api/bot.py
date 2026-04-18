@@ -229,6 +229,7 @@ def main() -> None:
     app = create_application()
 
     if settings.webhook_url:
+        logger.info("Starting webhook mode at %s/webhook", settings.webhook_url)
         app.run_webhook(
             listen="0.0.0.0",
             port=settings.port,
@@ -237,6 +238,7 @@ def main() -> None:
             secret_token=settings.webhook_secret.get_secret_value(),
         )
     else:
+        logger.info("Starting polling mode")
         app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
