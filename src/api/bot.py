@@ -220,9 +220,33 @@ def create_application() -> Application:
 
 
 def main() -> None:
-    """Run the Telegram bot."""
+    """Run the Telegram bot.
+
+    Uses webhook mode when WEBHOOK_URL is set (production),
+    otherwise falls back to polling (local development).
+    """
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    settings = get_settings()
     app = create_application()
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    if settings.webhook_url:
+        if not settings.webhook_secret.get_secret_value():
+            raise ValueError("WEBHOOK_SECRET must be set when WEBHOOK_URL is configured")
+        logger.info("Starting webhook mode at %s/webhook", settings.webhook_url)
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=settings.port,
+            url_path="/webhook",
+            webhook_url=f"{settings.webhook_url}/webhook",
+            secret_token=settings.webhook_secret.get_secret_value(),
+            allowed_updates=Update.ALL_TYPES,
+        )
+    else:
+        logger.info("Starting polling mode")
+        app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
