@@ -74,7 +74,14 @@ async def handle_message(
     chat_id = str(chat.id)
 
     # Resolve user_settings_id for multi-tenancy
-    user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
+    try:
+        user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
+    except Exception:
+        logger.exception("Failed to resolve user settings")
+        await update.message.reply_text(
+            "Sorry, I couldn't load your account settings. Please try again."
+        )
+        return
     if not user_settings_id:
         await update.message.reply_text("Please run /start first to set up your account.")
         return

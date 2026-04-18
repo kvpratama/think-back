@@ -13,7 +13,10 @@ async def test_seed_memories_passes_user_settings_id() -> None:
     """Test that seed_memories passes user_settings_id to save_memory."""
     from src.db.seed_memories import seed_memories
 
-    with patch("src.db.seed_memories.save_memory", new_callable=AsyncMock) as mock_save:
+    with (
+        patch("src.db.seed_memories.save_memory", new_callable=AsyncMock) as mock_save,
+        patch("src.db.seed_memories.asyncio.sleep", new_callable=AsyncMock),
+    ):
         mock_save.return_value = {"id": "test-id", "content": "test"}
 
         result = await seed_memories(

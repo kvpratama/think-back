@@ -37,10 +37,10 @@ async def seed_memories(
             data = json.load(f)
     except FileNotFoundError:
         logger.error("Seed file not found: %s", file_path)
-        return {"success": 0, "failed": 0}
+        return {"success": 0, "failed": 1}
     except json.JSONDecodeError as e:
         logger.error("Invalid JSON in seed file: %s", e)
-        return {"success": 0, "failed": 0}
+        return {"success": 0, "failed": 1}
 
     if show_progress:
         print(f"Loading memories from {file_path}...")

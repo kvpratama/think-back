@@ -142,6 +142,13 @@ async def test_save_memory_tool_surfaces_duplicates_in_interrupt() -> None:
         )
 
         mock_find.assert_called_once_with("Exercise is good", user_settings_id="usr-123")
+        mock_interrupt.assert_called_once_with(
+            {
+                "content": "Exercise is good",
+                "insight": "Exercise matters",
+                "duplicates": duplicates,
+            }
+        )
         assert "saved" in result.lower()
 
 
@@ -171,4 +178,11 @@ async def test_save_memory_tool_sends_empty_duplicates_when_none_found() -> None
         )
 
         mock_find.assert_called_once_with("Brand new insight", user_settings_id="usr-123")
+        mock_interrupt.assert_called_once_with(
+            {
+                "content": "Brand new insight",
+                "insight": "Something new",
+                "duplicates": [],
+            }
+        )
         assert "saved" in result.lower()

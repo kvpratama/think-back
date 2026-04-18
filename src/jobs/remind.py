@@ -304,32 +304,40 @@ async def main() -> None:
             logger.info("No memories for user %s, skipping.", chat_id)
             continue
 
-        content = memory["content"]
-        source = memory.get("source")
-        memory_id = memory["id"]
-        review_count = memory["review_count"]
+        try:
+            content = memory["content"]
+            source = memory.get("source")
+            memory_id = memory["id"]
+            review_count = memory["review_count"]
 
-        if not isinstance(content, str):
-            raise TypeError(f"Expected content to be str, got {type(content)}")
-        if not (source is None or isinstance(source, str)):
-            raise TypeError(f"Expected source to be str or None, got {type(source)}")
-        if not isinstance(memory_id, str):
-            raise TypeError(f"Expected memory_id to be str, got {type(memory_id)}")
-        if not isinstance(review_count, int):
-            raise TypeError(f"Expected review_count to be int, got {type(review_count)}")
+            if not isinstance(content, str):
+                raise TypeError(f"Expected content to be str, got {type(content)}")
+            if not (source is None or isinstance(source, str)):
+                raise TypeError(f"Expected source to be str or None, got {type(source)}")
+            if not isinstance(memory_id, str):
+                raise TypeError(f"Expected memory_id to be str, got {type(memory_id)}")
+            if not isinstance(review_count, int):
+                raise TypeError(f"Expected review_count to be int, got {type(review_count)}")
 
-        insight_resp = await generate_insight(content=content, source=source)
+            insight_resp = await generate_insight(content=content, source=source)
 
-        await send_reminder(
-            chat_id=chat_id,
-            content=content,
-            source=source,
-            insight=insight_resp.insight,
-            question=insight_resp.question,
-        )
+            await send_reminder(
+                chat_id=chat_id,
+                content=content,
+                source=source,
+                insight=insight_resp.insight,
+                question=insight_resp.question,
+            )
 
-        await asyncio.to_thread(update_memory, memory_id=memory_id, review_count=review_count)
-        logger.info("Reminder sent for memory %s to user %s.", memory_id, chat_id)
+            await asyncio.to_thread(update_memory, memory_id=memory_id, review_count=review_count)
+            logger.info("Reminder sent for memory %s to user %s.", memory_id, chat_id)
+        except Exception:
+            logger.exception(
+                "Failed to process reminder for chat_id=%s, user_settings_id=%s",
+                chat_id,
+                user_settings_id,
+            )
+            continue
 
 
 if __name__ == "__main__":

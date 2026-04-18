@@ -63,15 +63,23 @@ async def test_handle_message_natural_language(
     mock_state.values = {"messages": [MagicMock(content="I've noted your insight.")]}
 
     mock_graph = MagicMock()
-    mock_graph.astream_events = mock_astream
+    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
     mock_context.bot_data["graph"] = mock_graph
 
-    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+    with patch(
+        "src.api.bot.get_user_settings_id", return_value="settings-1"
+    ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
 
     assert mock_update.message is not None
+    mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
+    mock_graph.astream_events.assert_called_once()
+    config = mock_graph.astream_events.call_args.kwargs.get("config")
+    assert config is not None
+    assert config["configurable"]["user_settings_id"] == "settings-1"
+
     cast(Any, mock_update.message.reply_text).assert_called_once()
     mock_context.bot.edit_message_text.assert_called()
 
@@ -118,13 +126,22 @@ async def test_handle_message_interrupt_not_overwritten(
     mock_state.tasks = [mock_task]
 
     mock_graph = MagicMock()
-    mock_graph.astream_events = mock_astream
+    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
     mock_context.bot_data["graph"] = mock_graph
 
-    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+    with patch(
+        "src.api.bot.get_user_settings_id", return_value="settings-1"
+    ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
+
+    assert mock_update.message is not None
+    mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
+    mock_graph.astream_events.assert_called_once()
+    config = mock_graph.astream_events.call_args.kwargs.get("config")
+    assert config is not None
+    assert config["configurable"]["user_settings_id"] == "settings-1"
 
     # The last edit_message_text call should be the confirmation UI, not the accumulated text.
     last_call = mock_context.bot.edit_message_text.call_args
@@ -166,13 +183,22 @@ async def test_handle_message_interrupt_shows_duplicates(
     mock_state.tasks = [mock_task]
 
     mock_graph = MagicMock()
-    mock_graph.astream_events = mock_astream
+    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
     mock_context.bot_data["graph"] = mock_graph
 
-    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+    with patch(
+        "src.api.bot.get_user_settings_id", return_value="settings-1"
+    ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
+
+    assert mock_update.message is not None
+    mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
+    mock_graph.astream_events.assert_called_once()
+    config = mock_graph.astream_events.call_args.kwargs.get("config")
+    assert config is not None
+    assert config["configurable"]["user_settings_id"] == "settings-1"
 
     last_call = mock_context.bot.edit_message_text.call_args
     text = last_call.kwargs.get("text", last_call[1].get("text", ""))
@@ -209,13 +235,22 @@ async def test_handle_message_interrupt_no_duplicates(
     mock_state.tasks = [mock_task]
 
     mock_graph = MagicMock()
-    mock_graph.astream_events = mock_astream
+    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
     mock_context.bot_data["graph"] = mock_graph
 
-    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+    with patch(
+        "src.api.bot.get_user_settings_id", return_value="settings-1"
+    ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
+
+    assert mock_update.message is not None
+    mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
+    mock_graph.astream_events.assert_called_once()
+    config = mock_graph.astream_events.call_args.kwargs.get("config")
+    assert config is not None
+    assert config["configurable"]["user_settings_id"] == "settings-1"
 
     last_call = mock_context.bot.edit_message_text.call_args
     text = last_call.kwargs.get("text", last_call[1].get("text", ""))

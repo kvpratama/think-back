@@ -62,7 +62,7 @@ async def save_memory(
 
     metadata = {"summary": summary or content}
 
-    result = (
+    result = await asyncio.to_thread(
         client.table("memories")
         .insert(
             {
@@ -72,7 +72,7 @@ async def save_memory(
                 "user_settings_id": user_settings_id,
             }
         )
-        .execute()
+        .execute
     )
 
     if not result.data:

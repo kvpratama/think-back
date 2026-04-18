@@ -135,9 +135,20 @@ async def handle_callback(
     if action not in ("save_yes", "save_no"):
         return
 
+    if not query.message:
+        return
+
     thread_id = parts[1] if len(parts) > 1 else ""
     callback_chat_id = parts[2] if len(parts) > 2 else ""
     approved = action == "save_yes"
+
+    expected_thread_id = f"{query.message.chat.id}_{query.from_user.id}"
+    if callback_chat_id != str(query.message.chat.id) or thread_id != expected_thread_id:
+        try:
+            await query.edit_message_text(text="Please run /start first.")
+        except TelegramError:
+            logger.exception("Failed to edit message")
+        return
 
     user_settings_id = await asyncio.to_thread(get_user_settings_id, callback_chat_id)
     if not user_settings_id:

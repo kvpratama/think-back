@@ -46,6 +46,8 @@ async def search_memories_tool(
 
     Args:
         query: The search query describing what to look for.
+        config: LangGraph runtime config containing
+            ``configurable.user_settings_id`` for tenant scoping.
     """
     if not query:
         return "Please provide a search query."
@@ -76,6 +78,8 @@ async def save_memory_tool(
     Args:
         content: The user's original message (verbatim).
         insight: The extracted core insight or lesson.
+        config: LangGraph runtime config containing
+            ``configurable.user_settings_id`` for tenant scoping.
     """
     if not content or not insight:
         return "Please provide both content and insight."
