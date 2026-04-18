@@ -183,8 +183,8 @@ uv run run-evals
 ### Database Operations
 
 ```bash
-# Seed memories from JSON
-uv run python -m src.db.seed_memories
+# Seed memories from JSON (get user_settings_id from Supabase user_settings table)
+uv run python -m src.db.seed_memories <user_settings_id>
 
 # Generate type definitions from schema
 supabase gen types python --local > supabase/database_types.py

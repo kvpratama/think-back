@@ -15,12 +15,15 @@ async def test_search_memories_tool_returns_formatted_results() -> None:
             {"content": "Identity drives habits", "similarity": 0.8},
         ]
 
-        input_dict: Any = {"query": "habits"}
-        result = await search_memories_tool.ainvoke(input_dict)
+        tool_input: dict[str, Any] = {"query": "habits"}
+        result = await search_memories_tool.ainvoke(
+            tool_input,
+            config={"configurable": {"user_settings_id": "usr-123"}},
+        )
 
         assert "Consistency beats intensity" in result
         assert "Identity drives habits" in result
-        mock_search.assert_called_once_with("habits", top_k=5)
+        mock_search.assert_called_once_with("habits", user_settings_id="usr-123", top_k=5)
 
 
 async def test_search_memories_tool_handles_no_results() -> None:
@@ -30,8 +33,11 @@ async def test_search_memories_tool_handles_no_results() -> None:
     with patch("src.agent.tools.db_search_memories") as mock_search:
         mock_search.return_value = []
 
-        input_dict: Any = {"query": "unknown topic"}
-        result = await search_memories_tool.ainvoke(input_dict)
+        tool_input: dict[str, Any] = {"query": "unknown topic"}
+        result = await search_memories_tool.ainvoke(
+            tool_input,
+            config={"configurable": {"user_settings_id": "usr-123"}},
+        )
 
         assert "no saved" in result.lower() or "not found" in result.lower()
 
@@ -52,12 +58,19 @@ async def test_save_memory_tool_calls_interrupt() -> None:
             "content": "I realized that motivation follows action",
         }
 
-        input_dict: Any = {
+        tool_input: dict[str, Any] = {
             "content": "I realized that motivation follows action",
             "insight": "Motivation follows action",
         }
-        result = await save_memory_tool.ainvoke(input_dict)
+        result = await save_memory_tool.ainvoke(
+            tool_input,
+            config={"configurable": {"user_settings_id": "usr-123"}},
+        )
 
+        mock_find.assert_called_once_with(
+            "I realized that motivation follows action",
+            user_settings_id="usr-123",
+        )
         mock_interrupt.assert_called_once_with(
             {
                 "content": "I realized that motivation follows action",
@@ -68,6 +81,7 @@ async def test_save_memory_tool_calls_interrupt() -> None:
         mock_save.assert_called_once_with(
             "I realized that motivation follows action",
             summary="Motivation follows action",
+            user_settings_id="usr-123",
         )
         assert "saved" in result.lower()
 
@@ -84,12 +98,16 @@ async def test_save_memory_tool_cancelled() -> None:
         mock_find.return_value = []
         mock_interrupt.return_value = {"approved": False}
 
-        input_dict: Any = {
+        tool_input: dict[str, Any] = {
             "content": "Some thought",
             "insight": "A thought",
         }
-        result = await save_memory_tool.ainvoke(input_dict)
+        result = await save_memory_tool.ainvoke(
+            tool_input,
+            config={"configurable": {"user_settings_id": "usr-123"}},
+        )
 
+        mock_find.assert_called_once_with("Some thought", user_settings_id="usr-123")
         mock_save.assert_not_called()
         assert "cancel" in result.lower()
 
@@ -114,13 +132,16 @@ async def test_save_memory_tool_surfaces_duplicates_in_interrupt() -> None:
             "content": "Exercise is good",
         }
 
-        input_dict: Any = {
+        tool_input: dict[str, Any] = {
             "content": "Exercise is good",
             "insight": "Exercise matters",
         }
-        result = await save_memory_tool.ainvoke(input_dict)
+        result = await save_memory_tool.ainvoke(
+            tool_input,
+            config={"configurable": {"user_settings_id": "usr-123"}},
+        )
 
-        mock_find.assert_called_once_with("Exercise is good")
+        mock_find.assert_called_once_with("Exercise is good", user_settings_id="usr-123")
         mock_interrupt.assert_called_once_with(
             {
                 "content": "Exercise is good",
@@ -147,12 +168,16 @@ async def test_save_memory_tool_sends_empty_duplicates_when_none_found() -> None
             "content": "Brand new insight",
         }
 
-        input_dict: Any = {
+        tool_input: dict[str, Any] = {
             "content": "Brand new insight",
             "insight": "Something new",
         }
-        result = await save_memory_tool.ainvoke(input_dict)
+        result = await save_memory_tool.ainvoke(
+            tool_input,
+            config={"configurable": {"user_settings_id": "usr-123"}},
+        )
 
+        mock_find.assert_called_once_with("Brand new insight", user_settings_id="usr-123")
         mock_interrupt.assert_called_once_with(
             {
                 "content": "Brand new insight",

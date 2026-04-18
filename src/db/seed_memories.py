@@ -19,30 +19,28 @@ DEFAULT_SEED_FILE = "src/db/seed.json"
 async def seed_memories(
     file_path: str = DEFAULT_SEED_FILE,
     show_progress: bool = False,
+    *,
+    user_settings_id: str,
 ) -> dict[str, int]:
     """Import memories from JSON file into the database.
 
-    Reads a JSON file containing memory entries and imports them into the database
-    using the save_memory function. Includes rate limiting (2 second delay between
-    calls) and retry logic (waits 2 minutes and retries once on error).
-
     Args:
-        file_path: Path to the JSON file containing memories. Each entry should
-            have 'content' and 'summary' fields. Defaults to DEFAULT_SEED_FILE.
-        show_progress: Whether to print progress to stdout. Defaults to False.
+        file_path: Path to the JSON file containing memories.
+        show_progress: Whether to print progress to stdout.
+        user_settings_id: The user_settings UUID to assign to all seeded memories.
 
     Returns:
-        A dictionary containing:
-            - success: Number of successfully imported memories
-            - failed: Number of memories that failed to import after retry
-
-    Example:
-        >>> result = await seed_memories("memories.json")
-        >>> print(f"Imported {result['success']} memories")
-        Imported 120 memories
+        A dictionary with success and failed counts.
     """
-    with open(file_path) as f:
-        data = json.load(f)
+    try:
+        with open(file_path) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        logger.error("Seed file not found: %s", file_path)
+        return {"success": 0, "failed": 1}
+    except json.JSONDecodeError as e:
+        logger.error("Invalid JSON in seed file: %s", e)
+        return {"success": 0, "failed": 1}
 
     if show_progress:
         print(f"Loading memories from {file_path}...")
@@ -60,13 +58,11 @@ async def seed_memories(
         content = entry["content"]
         summary = entry.get("summary") or content
 
-        # Try to save memory with retry logic
-        succeeded = await _save_with_retry(content, summary)
+        succeeded = await _save_with_retry(content, summary, user_settings_id=user_settings_id)
 
         if succeeded:
             success_count += 1
             if show_progress:
-                # Truncate summary for display
                 display_summary = summary[:50] + "..." if len(summary) > 50 else summary
                 print(f"[{i + 1}/{len(data)}] ✓ {display_summary}")
         else:
@@ -75,7 +71,6 @@ async def seed_memories(
                 display_summary = summary[:50] + "..." if len(summary) > 50 else summary
                 print(f"[{i + 1}/{len(data)}] ✗ Failed: {display_summary}")
 
-        # Rate limiting: wait 2 seconds between calls (except after last entry)
         if i < len(data) - 1:
             if show_progress:
                 print(f"Waiting 2 seconds before next call... ({i + 1}/{len(data)})")
@@ -89,26 +84,30 @@ async def seed_memories(
     return {"success": success_count, "failed": failed_count}
 
 
-async def _save_with_retry(content: str, summary: str) -> bool:
+async def _save_with_retry(
+    content: str,
+    summary: str,
+    *,
+    user_settings_id: str,
+) -> bool:
     """Save a memory with retry logic on failure.
-
-    Attempts to save a memory. If it fails, waits 2 minutes and retries once.
 
     Args:
         content: The memory content text.
         summary: Summary of the memory.
+        user_settings_id: The user_settings UUID.
 
     Returns:
-        True if save succeeded (either first attempt or retry), False if both failed.
+        True if save succeeded, False if both attempts failed.
     """
     try:
-        await save_memory(content, summary)
+        await save_memory(content, summary, user_settings_id=user_settings_id)
         return True
     except Exception as e:
         logger.warning("Failed to save memory, retrying in 2 minutes: %s", e)
         await asyncio.sleep(120)
         try:
-            await save_memory(content, summary)
+            await save_memory(content, summary, user_settings_id=user_settings_id)
             return True
         except Exception as e:
             logger.error("Failed to save memory after retry: %s", e)
@@ -119,11 +118,15 @@ async def main() -> None:
     """Main entry point for the CLI script."""
     logging.basicConfig(level=logging.INFO)
 
-    file_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SEED_FILE
+    if len(sys.argv) < 2:
+        print("Usage: python -m src.db.seed_memories <user_settings_id> [file_path]")
+        sys.exit(1)
 
-    result = await seed_memories(file_path, show_progress=True)
+    user_settings_id = sys.argv[1]
+    file_path = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_SEED_FILE
 
-    # Exit with error code if any imports failed
+    result = await seed_memories(file_path, show_progress=True, user_settings_id=user_settings_id)
+
     if result["failed"] > 0:
         sys.exit(1)
 

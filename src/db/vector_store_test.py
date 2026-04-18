@@ -1,7 +1,6 @@
 """Tests for the vector store operations module."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -20,239 +19,303 @@ def mock_settings() -> MagicMock:
 async def test_save_memory_inserts_into_database(
     mock_settings: MagicMock,
 ) -> None:
-    """Test that save_memory inserts a memory with embedding into the database."""
-    from src.db.vector_store import _get_embeddings, _get_vector_store, save_memory
+    """Test that save_memory inserts a memory with user_settings_id."""
+    from src.db.vector_store import _get_embeddings, save_memory
 
     mock_client = MagicMock()
-    mock_vector_store = MagicMock()
-    memory_id = str(uuid4())
-    mock_vector_store.aadd_documents = AsyncMock(return_value=[memory_id])
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 768]
 
-    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
-        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
-            with patch("src.core.config.get_settings", return_value=mock_settings):
-                # Clear cache to ensure fresh instances
-                _get_embeddings.cache_clear()
-                _get_vector_store.cache_clear()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"id": "00000000-0000-0000-0000-000000000001"}]
+    mock_client.table.return_value.insert.return_value.execute.return_value = mock_execute
 
-                result = await save_memory("test content")
+    with (
+        patch("src.db.vector_store.get_supabase_client", return_value=mock_client),
+        patch("src.db.vector_store._get_embeddings", return_value=mock_embeddings),
+        patch("src.core.config.get_settings", return_value=mock_settings),
+    ):
+        _get_embeddings.cache_clear()
 
-                mock_vector_store.aadd_documents.assert_called_once()
-                assert result is not None
+        result = await save_memory(
+            "test content",
+            user_settings_id="usr-123",
+        )
+
+        mock_client.table.assert_called_with("memories")
+        insert_args = mock_client.table.return_value.insert.call_args[0][0]
+        assert insert_args["user_settings_id"] == "usr-123"
+        assert insert_args["content"] == "test content"
+        assert result is not None
 
 
 async def test_save_memory_uses_content_directly(
     mock_settings: MagicMock,
 ) -> None:
-    """Test that save_memory uses content directly (no command stripping)."""
-    from src.db.vector_store import _get_embeddings, _get_vector_store, save_memory
+    """Test that save_memory stores exact content passed in."""
+    from src.db.vector_store import _get_embeddings, save_memory
 
     mock_client = MagicMock()
-    mock_vector_store = MagicMock()
-    memory_id = str(uuid4())
-    mock_vector_store.aadd_documents = AsyncMock(return_value=[memory_id])
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 768]
 
-    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
-        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
-            with patch("src.core.config.get_settings", return_value=mock_settings):
-                _get_embeddings.cache_clear()
-                _get_vector_store.cache_clear()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"id": "00000000-0000-0000-0000-000000000001"}]
+    mock_client.table.return_value.insert.return_value.execute.return_value = mock_execute
 
-                await save_memory("Remember this")
+    with (
+        patch("src.db.vector_store.get_supabase_client", return_value=mock_client),
+        patch("src.db.vector_store._get_embeddings", return_value=mock_embeddings),
+        patch("src.core.config.get_settings", return_value=mock_settings),
+    ):
+        _get_embeddings.cache_clear()
 
-                # Verify the document was stored with the exact content passed in
-                call_args = mock_vector_store.aadd_documents.call_args
-                document = call_args[0][0][0]
-                assert document.page_content == "Remember this"
+        await save_memory(
+            "Remember this",
+            user_settings_id="usr-123",
+        )
+
+        insert_args = mock_client.table.return_value.insert.call_args[0][0]
+        assert insert_args["content"] == "Remember this"
 
 
 async def test_search_memories_performs_vector_search(
     mock_settings: MagicMock,
 ) -> None:
-    """Test that search_memories performs vector similarity search."""
-    from src.db.vector_store import _get_embeddings, _get_vector_store, search_memories
+    """Test that search_memories performs vector similarity search scoped by user."""
+    from src.db.vector_store import _get_embeddings, search_memories
 
-    mock_vector_store = MagicMock()
-    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(
-        return_value=[
-            (MagicMock(page_content="memory 1", metadata={"summary": "summary 1"}), 0.85),
-            (MagicMock(page_content="memory 2", metadata={"summary": "summary 2"}), 0.75),
-        ]
-    )
+    mock_client = MagicMock()
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 768]
 
-    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
-        with patch("src.db.vector_store.get_supabase_client"):
-            with patch("src.core.config.get_settings", return_value=mock_settings):
-                _get_embeddings.cache_clear()
-                _get_vector_store.cache_clear()
+    mock_rpc_response = MagicMock()
+    mock_rpc_response.data = [
+        {
+            "id": "id-1",
+            "content": "memory 1",
+            "metadata": {"summary": "summary 1"},
+            "similarity": 0.85,
+        },
+        {
+            "id": "id-2",
+            "content": "memory 2",
+            "metadata": {"summary": "summary 2"},
+            "similarity": 0.75,
+        },
+    ]
+    mock_client.rpc.return_value.execute.return_value = mock_rpc_response
 
-                result = await search_memories("test query", top_k=3)
+    with (
+        patch("src.db.vector_store.get_supabase_client", return_value=mock_client),
+        patch("src.db.vector_store._get_embeddings", return_value=mock_embeddings),
+        patch("src.core.config.get_settings", return_value=mock_settings),
+    ):
+        _get_embeddings.cache_clear()
 
-                assert len(result) == 2
-                assert result[0]["content"] == "memory 1"
-                assert result[0]["similarity"] == 0.85
-                mock_vector_store.similarity_search_with_relevance_scores.assert_called_once_with(
-                    "test query", k=3
-                )
+        result = await search_memories("test query", user_settings_id="usr-123", top_k=3)
+
+        assert len(result) == 2
+        assert result[0]["content"] == "memory 1"
+        assert result[0]["similarity"] == 0.85
+        mock_client.rpc.assert_called_once()
+        rpc_args = mock_client.rpc.call_args
+        assert rpc_args[0][0] == "match_memories"
+        assert rpc_args[1]["params"]["p_user_settings_id"] == "usr-123"
 
 
 async def test_search_memories_uses_query_directly(
     mock_settings: MagicMock,
 ) -> None:
     """Test that search_memories uses query directly (no command stripping)."""
-    from src.db.vector_store import _get_embeddings, _get_vector_store, search_memories
+    from src.db.vector_store import _get_embeddings, search_memories
 
-    mock_vector_store = MagicMock()
-    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(
-        return_value=[
-            (MagicMock(page_content="memory 1", metadata={"summary": "summary 1"}), 0.85),
-        ]
-    )
+    mock_client = MagicMock()
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 768]
 
-    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
-        with patch("src.db.vector_store.get_supabase_client"):
-            with patch("src.core.config.get_settings", return_value=mock_settings):
-                _get_embeddings.cache_clear()
-                _get_vector_store.cache_clear()
+    mock_rpc_response = MagicMock()
+    mock_rpc_response.data = [
+        {
+            "id": "id-1",
+            "content": "memory 1",
+            "metadata": {"summary": "summary 1"},
+            "similarity": 0.85,
+        },
+    ]
+    mock_client.rpc.return_value.execute.return_value = mock_rpc_response
 
-                await search_memories("What are my habits?")
+    with (
+        patch("src.db.vector_store.get_supabase_client", return_value=mock_client),
+        patch("src.db.vector_store._get_embeddings", return_value=mock_embeddings),
+        patch("src.core.config.get_settings", return_value=mock_settings),
+    ):
+        _get_embeddings.cache_clear()
 
-                mock_vector_store.similarity_search_with_relevance_scores.assert_called_once_with(
-                    "What are my habits?", k=3
-                )
+        await search_memories("What are my habits?", user_settings_id="usr-123")
+
+        mock_client.rpc.assert_called_once()
 
 
 async def test_find_duplicates_returns_exact_match(
     mock_settings: MagicMock,
 ) -> None:
-    """Test that find_duplicates detects an exact content match."""
-    from src.db.vector_store import _get_embeddings, _get_vector_store, find_duplicates
+    """Test that find_duplicates detects an exact content match scoped by user."""
+    from src.db.vector_store import _get_embeddings, find_duplicates
 
     mock_client = MagicMock()
-    # Simulate Supabase .table().select().eq().execute() returning one row
     mock_execute = MagicMock()
     mock_execute.data = [
         {"id": "00000000-0000-0000-0000-000000000001", "content": "Exercise is good"}
     ]
-    mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = (
-        mock_execute
+    # Chain: .table().select().eq("content", ...).eq("user_settings_id", ...).execute()
+    mock_eq_chain = MagicMock()
+    mock_eq_chain.execute.return_value = mock_execute
+    mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value = (
+        mock_eq_chain
     )
 
-    mock_vector_store = MagicMock()
-    # No semantic matches (exact match only)
-    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(return_value=[])
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 768]
 
-    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
-        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
-            with patch("src.core.config.get_settings", return_value=mock_settings):
-                _get_embeddings.cache_clear()
-                _get_vector_store.cache_clear()
+    mock_rpc_response = MagicMock()
+    mock_rpc_response.data = []
+    mock_client.rpc.return_value.execute.return_value = mock_rpc_response
 
-                result = await find_duplicates("Exercise is good")
+    with (
+        patch("src.db.vector_store.get_supabase_client", return_value=mock_client),
+        patch("src.db.vector_store._get_embeddings", return_value=mock_embeddings),
+        patch("src.core.config.get_settings", return_value=mock_settings),
+    ):
+        _get_embeddings.cache_clear()
 
-                assert len(result) == 1
-                assert result[0]["content"] == "Exercise is good"
-                assert result[0]["match_type"] == "exact"
-                assert result[0]["similarity"] == 1.0
+        result = await find_duplicates("Exercise is good", user_settings_id="usr-123")
+
+        assert len(result) == 1
+        assert result[0]["content"] == "Exercise is good"
+        assert result[0]["match_type"] == "exact"
+        assert result[0]["similarity"] == 1.0
 
 
 async def test_find_duplicates_returns_empty_when_no_matches(
     mock_settings: MagicMock,
 ) -> None:
     """Test that find_duplicates returns empty list when no duplicates exist."""
-    from src.db.vector_store import _get_embeddings, _get_vector_store, find_duplicates
+    from src.db.vector_store import _get_embeddings, find_duplicates
 
     mock_client = MagicMock()
     mock_execute = MagicMock()
     mock_execute.data = []
-    mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = (
-        mock_execute
+    mock_eq_chain = MagicMock()
+    mock_eq_chain.execute.return_value = mock_execute
+    mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value = (
+        mock_eq_chain
     )
 
-    mock_vector_store = MagicMock()
-    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(return_value=[])
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 768]
 
-    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
-        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
-            with patch("src.core.config.get_settings", return_value=mock_settings):
-                _get_embeddings.cache_clear()
-                _get_vector_store.cache_clear()
+    mock_rpc_response = MagicMock()
+    mock_rpc_response.data = []
+    mock_client.rpc.return_value.execute.return_value = mock_rpc_response
 
-                result = await find_duplicates("Something totally new")
+    with (
+        patch("src.db.vector_store.get_supabase_client", return_value=mock_client),
+        patch("src.db.vector_store._get_embeddings", return_value=mock_embeddings),
+        patch("src.core.config.get_settings", return_value=mock_settings),
+    ):
+        _get_embeddings.cache_clear()
 
-                assert result == []
+        result = await find_duplicates("Something totally new", user_settings_id="usr-123")
+
+        assert result == []
 
 
 async def test_find_duplicates_returns_semantic_matches(
     mock_settings: MagicMock,
 ) -> None:
     """Test that find_duplicates returns semantic matches above 0.85 threshold."""
-    from src.db.vector_store import _get_embeddings, _get_vector_store, find_duplicates
+    from src.db.vector_store import _get_embeddings, find_duplicates
 
     mock_client = MagicMock()
     mock_execute = MagicMock()
     mock_execute.data = []  # No exact match
-    mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = (
-        mock_execute
+    mock_eq_chain = MagicMock()
+    mock_eq_chain.execute.return_value = mock_execute
+    mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value = (
+        mock_eq_chain
     )
 
-    mock_vector_store = MagicMock()
-    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(
-        return_value=[
-            (MagicMock(page_content="Working out is key to staying healthy", metadata={}), 0.91),
-        ]
-    )
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 768]
 
-    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
-        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
-            with patch("src.core.config.get_settings", return_value=mock_settings):
-                _get_embeddings.cache_clear()
-                _get_vector_store.cache_clear()
+    mock_rpc_response = MagicMock()
+    mock_rpc_response.data = [
+        {
+            "id": "id-1",
+            "content": "Working out is key to staying healthy",
+            "metadata": {},
+            "similarity": 0.91,
+        },
+    ]
+    mock_client.rpc.return_value.execute.return_value = mock_rpc_response
 
-                result = await find_duplicates("Exercise is good for health")
+    with (
+        patch("src.db.vector_store.get_supabase_client", return_value=mock_client),
+        patch("src.db.vector_store._get_embeddings", return_value=mock_embeddings),
+        patch("src.core.config.get_settings", return_value=mock_settings),
+    ):
+        _get_embeddings.cache_clear()
 
-                assert len(result) == 1
-                assert result[0]["content"] == "Working out is key to staying healthy"
-                assert result[0]["match_type"] == "semantic"
-                assert result[0]["similarity"] == 0.91
+        result = await find_duplicates("Exercise is good for health", user_settings_id="usr-123")
+
+        assert len(result) == 1
+        assert result[0]["content"] == "Working out is key to staying healthy"
+        assert result[0]["match_type"] == "semantic"
+        assert result[0]["similarity"] == 0.91
 
 
 async def test_find_duplicates_deduplicates_exact_and_semantic_overlap(
     mock_settings: MagicMock,
 ) -> None:
     """Test exact+semantic overlap is deduplicated, returning only once as 'exact'."""
-    from src.db.vector_store import _get_embeddings, _get_vector_store, find_duplicates
+    from src.db.vector_store import _get_embeddings, find_duplicates
 
     mock_client = MagicMock()
     mock_execute = MagicMock()
     mock_execute.data = [
         {"id": "00000000-0000-0000-0000-000000000001", "content": "Exercise is good"}
     ]
-    mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = (
-        mock_execute
+    mock_eq_chain = MagicMock()
+    mock_eq_chain.execute.return_value = mock_execute
+    mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value = (
+        mock_eq_chain
     )
 
-    mock_vector_store = MagicMock()
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 768]
+
     # Same content also shows up as a semantic match
-    mock_vector_store.similarity_search_with_relevance_scores = MagicMock(
-        return_value=[
-            (MagicMock(page_content="Exercise is good", metadata={}), 0.99),
-            (MagicMock(page_content="Working out is healthy", metadata={}), 0.88),
-        ]
-    )
+    mock_rpc_response = MagicMock()
+    mock_rpc_response.data = [
+        {"id": "id-1", "content": "Exercise is good", "metadata": {}, "similarity": 0.99},
+        {"id": "id-2", "content": "Working out is healthy", "metadata": {}, "similarity": 0.88},
+    ]
+    mock_client.rpc.return_value.execute.return_value = mock_rpc_response
 
-    with patch("src.db.vector_store.SupabaseVectorStore", return_value=mock_vector_store):
-        with patch("src.db.vector_store.get_supabase_client", return_value=mock_client):
-            with patch("src.core.config.get_settings", return_value=mock_settings):
-                _get_embeddings.cache_clear()
-                _get_vector_store.cache_clear()
+    with (
+        patch("src.db.vector_store.get_supabase_client", return_value=mock_client),
+        patch("src.db.vector_store._get_embeddings", return_value=mock_embeddings),
+        patch("src.core.config.get_settings", return_value=mock_settings),
+    ):
+        _get_embeddings.cache_clear()
 
-                result = await find_duplicates("Exercise is good")
+        result = await find_duplicates("Exercise is good", user_settings_id="usr-123")
 
-                assert len(result) == 2
-                # First result is the exact match (not duplicated)
-                exact_results = [r for r in result if r["match_type"] == "exact"]
-                semantic_results = [r for r in result if r["match_type"] == "semantic"]
-                assert len(exact_results) == 1
-                assert len(semantic_results) == 1
-                assert semantic_results[0]["content"] == "Working out is healthy"
+        assert len(result) == 2
+        # First result is the exact match (not duplicated)
+        exact_results = [r for r in result if r["match_type"] == "exact"]
+        semantic_results = [r for r in result if r["match_type"] == "semantic"]
+        assert len(exact_results) == 1
+        assert len(semantic_results) == 1
+        assert semantic_results[0]["content"] == "Working out is healthy"

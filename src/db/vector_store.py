@@ -13,8 +13,6 @@ import logging
 import uuid
 from functools import lru_cache
 
-from langchain_community.vectorstores import SupabaseVectorStore
-from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from src.agent.state import DuplicateMatch, Memory
@@ -40,94 +38,95 @@ def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
     )
 
 
-@lru_cache
-def _get_vector_store() -> SupabaseVectorStore:
-    """Create and return the Supabase vector store instance (cached singleton).
-
-    Returns:
-        SupabaseVectorStore configured instance.
-    """
-    client = get_supabase_client()
-    embeddings = _get_embeddings()
-
-    return SupabaseVectorStore(
-        embedding=embeddings,
-        client=client,
-        table_name="memories",
-        query_name="match_memories",
-    )
-
-
-async def save_memory(content: str, summary: str | None = None) -> Memory:
+async def save_memory(
+    content: str,
+    summary: str | None = None,
+    *,
+    user_settings_id: str,
+) -> Memory:
     """Save a memory with its embedding to the database.
 
     Args:
         content: The memory content text (already cleaned of command prefixes).
         summary: Optional summary of the memory. Defaults to content if not provided.
+        user_settings_id: The user_settings UUID that owns this memory.
 
     Returns:
         The inserted memory record including its generated ID.
-
-    Example:
-        >>> result = await save_memory("Consistency beats intensity.")
-        >>> result["id"]
-        UUID('...')
     """
-    vector_store = _get_vector_store()
+    client = get_supabase_client()
+    embeddings = _get_embeddings()
 
-    # Create a document with metadata
+    vectors = await asyncio.to_thread(embeddings.embed_documents, [content])
+    embedding = vectors[0]
+
     metadata = {"summary": summary or content}
-    document = Document(page_content=content, metadata=metadata)
 
-    # Use aadd_documents to insert with embeddings generated automatically
-    ids = await vector_store.aadd_documents([document])
+    result = await asyncio.to_thread(
+        client.table("memories")
+        .insert(
+            {
+                "content": content,
+                "metadata": metadata,
+                "embedding": embedding,
+                "user_settings_id": user_settings_id,
+            }
+        )
+        .execute
+    )
 
-    return {"id": uuid.UUID(ids[0]), "content": content}
+    if not result.data:
+        raise RuntimeError("Failed to insert memory: no data returned")
+    row = result.data[0]
+    return {"id": uuid.UUID(row["id"]), "content": content}
 
 
 async def search_memories(
     query: str,
+    *,
+    user_settings_id: str,
     top_k: int = 3,
     threshold: float = 0.6,
 ) -> list[Memory]:
     """Search for memories similar to the query using vector similarity.
 
-    Performs similarity search using the embedding of the query
-    against stored memory embeddings.
-
     Args:
-        query: The search query text (already cleaned of command prefixes).
+        query: The search query text.
+        user_settings_id: The user_settings UUID to scope the search.
         top_k: Number of results to return. Defaults to 3.
-        threshold: Minimum similarity score to consider a match. Defaults to 0.6.
+        threshold: Minimum similarity score. Defaults to 0.6.
 
     Returns:
         A list of matching memory records with their content and metadata.
-
-    Example:
-        >>> memories = await search_memories("habits", top_k=5)
-        >>> for memory in memories:
-        ...     print(memory["content"])
     """
-    vector_store = _get_vector_store()
+    client = get_supabase_client()
+    embeddings = _get_embeddings()
 
-    # Perform similarity search
-    # Note: SupabaseVectorStore doesn't implement asimilarity_search_with_relevance_scores,
-    # so we wrap the synchronous version in asyncio.to_thread to avoid blocking the event loop.
-    docs_with_scores = await asyncio.to_thread(
-        vector_store.similarity_search_with_relevance_scores,
-        query,
-        k=top_k,
+    vectors = await asyncio.to_thread(embeddings.embed_documents, [query])
+    query_embedding = vectors[0]
+
+    response = await asyncio.to_thread(
+        lambda: client.rpc(
+            "match_memories",
+            params={
+                "query_embedding": query_embedding,
+                "p_user_settings_id": user_settings_id,
+                "match_count": top_k,
+            },
+        ).execute()
     )
 
-    # Convert to the expected format
     results: list[Memory] = []
-    for doc, score in docs_with_scores:
-        if score >= threshold:
-            result: Memory = {
-                "content": doc.page_content,
-                "similarity": score,
-            }
-            results.append(result)
+    for row in response.data or []:
+        similarity = row.get("similarity", 0.0)
+        if similarity >= threshold:
+            results.append(
+                {
+                    "content": row["content"],
+                    "similarity": similarity,
+                }
+            )
+
     logger.debug(
         "Search returned %d results, scores: %s",
         len(results),
@@ -136,28 +135,28 @@ async def search_memories(
     return results
 
 
-async def find_duplicates(content: str) -> list[DuplicateMatch]:
+async def find_duplicates(
+    content: str,
+    *,
+    user_settings_id: str,
+) -> list[DuplicateMatch]:
     """Check for duplicate memories by exact text match and semantic similarity.
-
-    Performs two checks:
-    1. Exact text match via Supabase query (no embedding cost).
-    2. Semantic similarity search with a 0.85 threshold (top 3).
-
-    Results are deduplicated — an exact match that also appears in the
-    semantic results is only returned once (as "exact").
 
     Args:
         content: The memory content to check for duplicates.
+        user_settings_id: The user_settings UUID to scope the search.
 
     Returns:
-        A list of duplicate records, each containing 'content',
-        'similarity', and 'match_type' ("exact" or "semantic").
+        A list of duplicate records.
     """
     client = get_supabase_client()
 
-    # Step 1: Exact text match (wrap sync client call to avoid blocking the event loop)
     exact_response = await asyncio.to_thread(
-        client.table("memories").select("id, content").eq("content", content).execute
+        client.table("memories")
+        .select("id, content")
+        .eq("content", content)
+        .eq("user_settings_id", user_settings_id)
+        .execute
     )
     exact_contents: set[str] = set()
     results: list[DuplicateMatch] = []
@@ -171,8 +170,9 @@ async def find_duplicates(content: str) -> list[DuplicateMatch]:
             }
         )
 
-    # Step 2: Semantic similarity search
-    semantic_matches = await search_memories(content, top_k=3, threshold=0.85)
+    semantic_matches = await search_memories(
+        content, user_settings_id=user_settings_id, top_k=3, threshold=0.85
+    )
     for match in semantic_matches:
         if match["content"] not in exact_contents:
             results.append(

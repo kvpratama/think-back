@@ -59,7 +59,7 @@ class TestGetDueUsers:
             fake_now = datetime(2026, 4, 16, 8, 30, tzinfo=UTC)
             result = get_due_users(now=fake_now)
 
-        assert result == ["123456"]
+        assert result == [("123456", "settings-1")]
 
     def test_skips_user_whose_reminder_time_does_not_match(self, mock_supabase: MagicMock) -> None:
         mock_supabase.table.side_effect = _make_table_side_effect(
@@ -90,7 +90,7 @@ class TestGetDueUsers:
                 {
                     "id": "settings-1",
                     "telegram_chat_id": "999",
-                    "timezone": "Etc/GMT-7",  # UTC+7
+                    "timezone": "Etc/GMT-7",
                 },
             ],
             reminders_data=[
@@ -102,11 +102,10 @@ class TestGetDueUsers:
         with patch("src.jobs.remind.get_supabase_client", return_value=mock_supabase):
             from src.jobs.remind import get_due_users
 
-            # 01:00 UTC = 08:00 UTC+7 → should match
             fake_now = datetime(2026, 4, 16, 1, 0, tzinfo=UTC)
             result = get_due_users(now=fake_now)
 
-        assert result == ["999"]
+        assert result == [("999", "settings-1")]
 
     def test_user_with_no_reminders_is_not_returned(self, mock_supabase: MagicMock) -> None:
         mock_supabase.table.side_effect = _make_table_side_effect(
@@ -135,7 +134,8 @@ class TestSelectMemory:
     def test_weights_novel_memories_by_age(self, mock_supabase: MagicMock) -> None:
         now = datetime(2026, 4, 16, 8, 0, tzinfo=UTC)
 
-        mock_supabase.table.return_value.select.return_value.execute.return_value.data = [
+        execute = mock_supabase.table.return_value.select.return_value.eq.return_value.execute
+        execute.return_value.data = [
             {
                 "id": "aaa",
                 "content": "Old wisdom",
@@ -159,22 +159,29 @@ class TestSelectMemory:
             patch("random.choices") as mock_choices,
         ):
             mock_choices.return_value = [
-                mock_supabase.table.return_value.select.return_value.execute.return_value.data[0]
+                mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data[
+                    0
+                ]
             ]
 
             from src.jobs.remind import select_memory
 
-            select_memory(now=now)
+            select_memory(user_settings_id="usr-123", now=now)
 
-            # Verify weights: old memory should have much higher weight
+            # Verify .eq("user_settings_id", ...) was called
+            mock_supabase.table.return_value.select.return_value.eq.assert_called_once_with(
+                "user_settings_id", "usr-123"
+            )
+
             call_args = mock_choices.call_args
             weights = call_args.kwargs["weights"]
-            assert weights[0] > weights[1]  # 10 days > 0.08 days
+            assert weights[0] > weights[1]
 
     def test_weights_reviewed_memories_by_staleness(self, mock_supabase: MagicMock) -> None:
         now = datetime(2026, 4, 16, 8, 0, tzinfo=UTC)
 
-        mock_supabase.table.return_value.select.return_value.execute.return_value.data = [
+        execute = mock_supabase.table.return_value.select.return_value.eq.return_value.execute
+        execute.return_value.data = [
             {
                 "id": "aaa",
                 "content": "Stale memory",
@@ -198,20 +205,22 @@ class TestSelectMemory:
             patch("random.choices") as mock_choices,
         ):
             mock_choices.return_value = [
-                mock_supabase.table.return_value.select.return_value.execute.return_value.data[0]
+                mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data[
+                    0
+                ]
             ]
 
             from src.jobs.remind import select_memory
 
-            select_memory(now=now)
+            select_memory(user_settings_id="usr-123", now=now)
 
             call_args = mock_choices.call_args
             weights = call_args.kwargs["weights"]
-            # Stale: 14 / 2 = 7.0, Fresh: 0.125 / 5 = 0.025
             assert weights[0] > weights[1]
 
     def test_raises_when_no_memories_exist(self, mock_supabase: MagicMock) -> None:
-        mock_supabase.table.return_value.select.return_value.execute.return_value.data = []
+        execute = mock_supabase.table.return_value.select.return_value.eq.return_value.execute
+        execute.return_value.data = []
 
         from src.jobs.remind import select_memory
 
@@ -219,7 +228,7 @@ class TestSelectMemory:
             patch("src.jobs.remind.get_supabase_client", return_value=mock_supabase),
             pytest.raises(RuntimeError, match="No memories available"),
         ):
-            select_memory()
+            select_memory(user_settings_id="usr-123")
 
 
 class TestGenerateInsight:
@@ -389,8 +398,14 @@ class TestMain:
         }
 
         with (
-            patch("src.jobs.remind.get_due_users", return_value=["chat-123"]) as mock_get_users,
-            patch("src.jobs.remind.select_memory", return_value=fake_memory) as mock_select,
+            patch(
+                "src.jobs.remind.get_due_users",
+                return_value=[("chat-123", "settings-1")],
+            ) as mock_get_users,
+            patch(
+                "src.jobs.remind.select_memory",
+                return_value=fake_memory,
+            ) as mock_select,
             patch(
                 "src.jobs.remind.generate_insight",
                 new_callable=AsyncMock,
@@ -404,7 +419,7 @@ class TestMain:
             await main()
 
         mock_get_users.assert_called_once()
-        mock_select.assert_called_once()
+        mock_select.assert_called_once_with(user_settings_id="settings-1")
         mock_generate.assert_called_once_with(content="A great quote", source="Author")
         mock_send.assert_called_once_with(
             chat_id="chat-123",

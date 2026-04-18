@@ -19,21 +19,21 @@
 --
 -- The similarity score is: 1 - cosine_distance (higher = more similar)
 
-create or replace function match_memories (
-  query_embedding  extensions.vector(768),
-  filter           jsonb    default '{}',
-  match_count      int      default 5
+CREATE OR REPLACE FUNCTION "public"."match_memories"(
+    "query_embedding" "extensions"."vector",
+    "p_user_settings_id" uuid,
+    "match_count" integer DEFAULT 5,
+    "filter" "jsonb" DEFAULT '{}'::"jsonb"
 )
-returns table (
-  id         uuid,
-  content    text,
-  metadata   jsonb,
-  similarity float
+RETURNS TABLE(
+    "id" "uuid",
+    "content" "text",
+    "metadata" "jsonb",
+    "similarity" double precision
 )
-language plpgsql
-security definer
-set search_path = public, extensions
-as $$
+LANGUAGE "plpgsql" SECURITY DEFINER
+SET "search_path" TO 'public', 'extensions'
+AS $$
 #variable_conflict use_column
 begin
   return query
@@ -47,12 +47,11 @@ begin
     ) || COALESCE(memories.metadata, '{}'::jsonb) as metadata,
     1 - (memories.embedding <=> query_embedding) as similarity
   from memories
-  -- Apply optional metadata filter if passed by LangChain
-  -- For ThinkBack we rarely use this but it keeps the interface standard
   where
-    case
+    memories.user_settings_id = p_user_settings_id
+    and case
       when filter = '{}'::jsonb then true
-      else memories.id::text = filter->>'id'  -- basic id filter support
+      else memories.id::text = filter->>'id'
     end
   order by memories.embedding <=> query_embedding
   limit match_count;

@@ -5,6 +5,7 @@ This module handles the Telegram bot commands and message routing.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
@@ -32,6 +33,7 @@ from src.api.bot_commands import (
 from src.api.bot_graph import get_graph
 from src.api.bot_helpers import truncate_for_telegram
 from src.core.config import get_settings
+from src.db.user_settings import get_user_settings_id
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +71,28 @@ async def handle_message(
     user_input = update.message.text
     chat = update.message.chat
     user_id = update.message.from_user.id
+    chat_id = str(chat.id)
+
+    # Resolve user_settings_id for multi-tenancy
+    try:
+        user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
+    except Exception:
+        logger.exception("Failed to resolve user settings")
+        await update.message.reply_text(
+            "Sorry, I couldn't load your account settings. Please try again."
+        )
+        return
+    if not user_settings_id:
+        await update.message.reply_text("Please run /start first to set up your account.")
+        return
 
     sent_message = await update.message.reply_text("Thinking... 🧠")
 
     graph = get_graph(context)
     thread_id = f"{chat.id}_{user_id}"
-    config = RunnableConfig({"configurable": {"thread_id": thread_id}})
+    config = RunnableConfig(
+        {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
+    )
 
     accumulated_response = ""
     final_response = ""
@@ -127,8 +145,14 @@ async def handle_message(
             keyboard = InlineKeyboardMarkup(
                 [
                     [
-                        InlineKeyboardButton("✅ Save", callback_data=f"save_yes|{thread_id}"),
-                        InlineKeyboardButton("❌ Cancel", callback_data=f"save_no|{thread_id}"),
+                        InlineKeyboardButton(
+                            "✅ Save",
+                            callback_data=f"save_yes|{thread_id}|{chat_id}",
+                        ),
+                        InlineKeyboardButton(
+                            "❌ Cancel",
+                            callback_data=f"save_no|{thread_id}|{chat_id}",
+                        ),
                     ]
                 ]
             )
