@@ -6,11 +6,13 @@ Import memories from a JSON file into the database with rate limiting and retry 
 
 ```bash
 # Use default file (src/db/seed.json)
-uv run python -m src.db.seed_memories
+uv run python -m src.db.seed_memories <user_settings_id>
 
 # Use custom file
-uv run python -m src.db.seed_memories path/to/your/memories.json
+uv run python -m src.db.seed_memories <user_settings_id> path/to/your/memories.json
 ```
+
+Get your `user_settings_id` from the `user_settings` table in Supabase.
 
 ## JSON Format
 
