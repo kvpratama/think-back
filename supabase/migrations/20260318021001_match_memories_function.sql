@@ -21,9 +21,9 @@
 
 CREATE OR REPLACE FUNCTION "public"."match_memories"(
     "query_embedding" "extensions"."vector",
-    "filter" "jsonb" DEFAULT '{}'::"jsonb",
+    "p_user_settings_id" uuid,
     "match_count" integer DEFAULT 5,
-    "p_user_settings_id" uuid DEFAULT NULL
+    "filter" "jsonb" DEFAULT '{}'::"jsonb"
 )
 RETURNS TABLE(
     "id" "uuid",
@@ -48,7 +48,7 @@ begin
     1 - (memories.embedding <=> query_embedding) as similarity
   from memories
   where
-    (p_user_settings_id IS NULL OR memories.user_settings_id = p_user_settings_id)
+    memories.user_settings_id = p_user_settings_id
     and case
       when filter = '{}'::jsonb then true
       else memories.id::text = filter->>'id'

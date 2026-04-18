@@ -66,7 +66,7 @@ CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA "extensions";
 
 
 
-CREATE OR REPLACE FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector", "filter" "jsonb" DEFAULT '{}'::"jsonb", "match_count" integer DEFAULT 5, "p_user_settings_id" "uuid" DEFAULT NULL::"uuid") RETURNS TABLE("id" "uuid", "content" "text", "metadata" "jsonb", "similarity" double precision)
+CREATE OR REPLACE FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector", "p_user_settings_id" "uuid", "match_count" integer DEFAULT 5, "filter" "jsonb" DEFAULT '{}'::"jsonb") RETURNS TABLE("id" "uuid", "content" "text", "metadata" "jsonb", "similarity" double precision)
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public', 'extensions'
     AS $$
@@ -84,7 +84,7 @@ begin
     1 - (memories.embedding <=> query_embedding) as similarity
   from memories
   where
-    (p_user_settings_id IS NULL OR memories.user_settings_id = p_user_settings_id)
+    memories.user_settings_id = p_user_settings_id
     and case
       when filter = '{}'::jsonb then true
       else memories.id::text = filter->>'id'
@@ -95,7 +95,7 @@ end;
 $$;
 
 
-ALTER FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector", "filter" "jsonb", "match_count" integer, "p_user_settings_id" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector", "p_user_settings_id" "uuid", "match_count" integer, "filter" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
