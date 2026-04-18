@@ -104,7 +104,7 @@ async def main() -> None:
 
     # Test 3: Find Duplicates (scoped by user)
     print("\n" + "=" * 60)
-    print("TEST  3: Find Duplicates (user isolation)")
+    print("TEST 3: Find Duplicates (user isolation)")
     print("=" * 60)
 
     print("\n[User 1] Saving duplicate: 'Consistency beats intensity'")

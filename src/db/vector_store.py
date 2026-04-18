@@ -75,6 +75,8 @@ async def save_memory(
         .execute()
     )
 
+    if not result.data:
+        raise RuntimeError("Failed to insert memory: no data returned")
     row = result.data[0]
     return {"id": uuid.UUID(row["id"]), "content": content}
 
@@ -115,7 +117,7 @@ async def search_memories(
     )
 
     results: list[Memory] = []
-    for row in response.data:
+    for row in response.data or []:
         similarity = row.get("similarity", 0.0)
         if similarity >= threshold:
             results.append(

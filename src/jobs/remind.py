@@ -200,7 +200,8 @@ async def generate_insight(content: str, source: str | None = None) -> InsightRe
     ]
 
     result = await structured_llm.ainvoke(messages)
-    assert isinstance(result, InsightResponse)
+    if not isinstance(result, InsightResponse):
+        raise TypeError(f"Expected InsightResponse, got {type(result)}")
     return result
 
 
@@ -235,11 +236,28 @@ async def send_reminder(
     safe_insight = sanitize_for_telegram_html(insight)
     safe_question = sanitize_for_telegram_html(question)
 
-    parts = [f"📖 <blockquote>{safe_content}</blockquote>"]
+    title = [
+        "🧠 A thought to revisit",
+        "🔁 Let's bring this back",
+        "📌 Something worth remembering",
+    ]
+    parts = [
+        random.choice(title),
+        "",
+        f"<blockquote>{safe_content}</blockquote>",
+    ]
     if safe_source:
-        parts.append(f"— {safe_source}")
-    parts.append(f"\n💡 <b>Insight:</b> {safe_insight}")
-    parts.append(f"\n❓ <b>Reflect:</b> {safe_question}")
+        parts.append(f"<i>— {safe_source}</i>")
+    parts.extend(
+        [
+            "",
+            "💡 <b>Insight</b>",
+            f"{safe_insight}",
+            "",
+            "❓ <b>Take a moment</b>",
+            f"{safe_question}",
+        ]
+    )
 
     text = "\n".join(parts)
 
@@ -291,10 +309,14 @@ async def main() -> None:
         memory_id = memory["id"]
         review_count = memory["review_count"]
 
-        assert isinstance(content, str)
-        assert source is None or isinstance(source, str)
-        assert isinstance(memory_id, str)
-        assert isinstance(review_count, int)
+        if not isinstance(content, str):
+            raise TypeError(f"Expected content to be str, got {type(content)}")
+        if not (source is None or isinstance(source, str)):
+            raise TypeError(f"Expected source to be str or None, got {type(source)}")
+        if not isinstance(memory_id, str):
+            raise TypeError(f"Expected memory_id to be str, got {type(memory_id)}")
+        if not isinstance(review_count, int):
+            raise TypeError(f"Expected review_count to be int, got {type(review_count)}")
 
         insight_resp = await generate_insight(content=content, source=source)
 

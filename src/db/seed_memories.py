@@ -32,8 +32,15 @@ async def seed_memories(
     Returns:
         A dictionary with success and failed counts.
     """
-    with open(file_path) as f:
-        data = json.load(f)
+    try:
+        with open(file_path) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        logger.error("Seed file not found: %s", file_path)
+        return {"success": 0, "failed": 0}
+    except json.JSONDecodeError as e:
+        logger.error("Invalid JSON in seed file: %s", e)
+        return {"success": 0, "failed": 0}
 
     if show_progress:
         print(f"Loading memories from {file_path}...")
