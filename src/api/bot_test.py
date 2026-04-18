@@ -219,6 +219,50 @@ async def test_handle_message_interrupt_no_duplicates(
     assert "duplicate" not in text.lower()
 
 
+async def test_main_uses_polling_when_no_webhook_url() -> None:
+    """Test that main() uses run_polling when WEBHOOK_URL is not set."""
+    from src.api.bot import main
+
+    mock_app = MagicMock()
+    mock_settings = MagicMock()
+    mock_settings.webhook_url = ""
+
+    with (
+        patch("src.api.bot.create_application", return_value=mock_app),
+        patch("src.api.bot.get_settings", return_value=mock_settings),
+    ):
+        main()
+
+    mock_app.run_polling.assert_called_once_with(allowed_updates=Update.ALL_TYPES)
+    mock_app.run_webhook.assert_not_called()
+
+
+async def test_main_uses_webhook_when_webhook_url_set() -> None:
+    """Test that main() uses run_webhook when WEBHOOK_URL is set."""
+    from src.api.bot import main
+
+    mock_app = MagicMock()
+    mock_settings = MagicMock()
+    mock_settings.webhook_url = "https://my-app.up.railway.app"
+    mock_settings.webhook_secret.get_secret_value.return_value = "test-secret"
+    mock_settings.port = 8000
+
+    with (
+        patch("src.api.bot.create_application", return_value=mock_app),
+        patch("src.api.bot.get_settings", return_value=mock_settings),
+    ):
+        main()
+
+    mock_app.run_webhook.assert_called_once_with(
+        listen="0.0.0.0",
+        port=8000,
+        url_path="/webhook",
+        webhook_url="https://my-app.up.railway.app/webhook",
+        secret_token="test-secret",
+    )
+    mock_app.run_polling.assert_not_called()
+
+
 async def test_unknown_command(mock_update: Update, mock_context: MagicMock) -> None:
     """Test that unknown commands receive a helpful error message."""
     from src.api.bot import unknown_command

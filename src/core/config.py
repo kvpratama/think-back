@@ -28,6 +28,9 @@ class Settings(BaseSettings):
         llm_provider: LLM provider name (e.g., 'openai').
         llm_provider_base_url: Base URL for the LLM provider API.
         embedding_model: Embedding model name for vector generation.
+        webhook_url: Public HTTPS URL to enable webhook mode (empty for polling).
+        webhook_secret: Secret token for Telegram webhook request verification.
+        port: Port for the webhook server.
         eval_llm_model: LLM model name for evaluation tasks.
         eval_llm_provider: LLM provider name for evaluation tasks.
         eval_llm_provider_base_url: Base URL for the evaluation LLM provider API.
@@ -54,6 +57,11 @@ class Settings(BaseSettings):
     llm_provider: str = "openai"
     llm_provider_base_url: str = "https://api.openai.com/v1"
     embedding_model: str = "gemini-embedding-001"
+
+    # Webhook (set WEBHOOK_URL to enable webhook mode; leave empty for polling)
+    webhook_url: str = ""
+    webhook_secret: SecretStr = SecretStr("")
+    port: int = 8000
 
     # LLM for evaluation
     eval_llm_model: str = "gpt-4o"

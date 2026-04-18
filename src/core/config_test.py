@@ -93,6 +93,95 @@ def test_settings_has_default_embedding_model() -> None:
     assert settings.embedding_model == "gemini-embedding-001"
 
 
+def test_settings_webhook_url_defaults_to_empty() -> None:
+    """Test that webhook_url defaults to empty string (polling mode)."""
+    from src.core.config import Settings
+
+    with patch.dict(
+        os.environ,
+        {
+            "SUPABASE_URL": "https://test.supabase.co",
+            "SUPABASE_KEY": "test-key",
+            "OPENAI_API_KEY": "sk-test",
+            "GEMINI_API_KEY": "gemini-test",
+            "TELEGRAM_BOT_TOKEN": "123:ABC",
+        },
+        clear=True,
+    ):
+        with patch.object(Settings, "model_config", _NO_DOTENV):
+            settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.webhook_url == ""
+
+
+def test_settings_webhook_secret_defaults_to_empty() -> None:
+    """Test that webhook_secret defaults to empty string."""
+    from src.core.config import Settings
+
+    with patch.dict(
+        os.environ,
+        {
+            "SUPABASE_URL": "https://test.supabase.co",
+            "SUPABASE_KEY": "test-key",
+            "OPENAI_API_KEY": "sk-test",
+            "GEMINI_API_KEY": "gemini-test",
+            "TELEGRAM_BOT_TOKEN": "123:ABC",
+        },
+        clear=True,
+    ):
+        with patch.object(Settings, "model_config", _NO_DOTENV):
+            settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.webhook_secret.get_secret_value() == ""
+
+
+def test_settings_port_defaults_to_8000() -> None:
+    """Test that port defaults to 8000."""
+    from src.core.config import Settings
+
+    with patch.dict(
+        os.environ,
+        {
+            "SUPABASE_URL": "https://test.supabase.co",
+            "SUPABASE_KEY": "test-key",
+            "OPENAI_API_KEY": "sk-test",
+            "GEMINI_API_KEY": "gemini-test",
+            "TELEGRAM_BOT_TOKEN": "123:ABC",
+        },
+        clear=True,
+    ):
+        with patch.object(Settings, "model_config", _NO_DOTENV):
+            settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.port == 8000
+
+
+def test_settings_loads_webhook_url_from_env() -> None:
+    """Test that webhook_url is loaded from WEBHOOK_URL env var."""
+    from src.core.config import Settings
+
+    with patch.dict(
+        os.environ,
+        {
+            "SUPABASE_URL": "https://test.supabase.co",
+            "SUPABASE_KEY": "test-key",
+            "OPENAI_API_KEY": "sk-test",
+            "GEMINI_API_KEY": "gemini-test",
+            "TELEGRAM_BOT_TOKEN": "123:ABC",
+            "WEBHOOK_URL": "https://my-app.up.railway.app",
+            "WEBHOOK_SECRET": "my-secret-token",
+            "PORT": "9000",
+        },
+        clear=True,
+    ):
+        with patch.object(Settings, "model_config", _NO_DOTENV):
+            settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.webhook_url == "https://my-app.up.railway.app"
+    assert settings.webhook_secret.get_secret_value() == "my-secret-token"
+    assert settings.port == 9000
+
+
 def test_vector_dimensions_is_fixed_constant() -> None:
     """Test that VECTOR_DIMENSIONS is a fixed constant, not configurable via Settings."""
     from src.core.config import VECTOR_DIMENSIONS, Settings
