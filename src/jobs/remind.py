@@ -34,18 +34,14 @@ self-reflection, or application prompt (1 sentence).
 Keep it warm, concise, and grounded in the original quote."""
 
 
-def get_due_users(now: datetime | None = None) -> list[str]:
+def get_due_users(now: datetime | None = None) -> list[tuple[str, str]]:
     """Find users whose reminder time matches the current hour.
-
-    Queries user_settings and reminder_times tables. For each user,
-    converts the current UTC time to the user's timezone and checks
-    if any of their reminder_times fall within that hour.
 
     Args:
         now: Override for the current time (for testing). Defaults to UTC now.
 
     Returns:
-        A list of telegram_chat_id strings for users due for a reminder.
+        A list of (telegram_chat_id, user_settings_id) tuples for due users.
     """
     if now is None:
         now = datetime.now(UTC)
@@ -59,18 +55,16 @@ def get_due_users(now: datetime | None = None) -> list[str]:
     if not settings_response.data:
         return []
 
-    # Build a map of user_settings_id → row
     settings_by_id: dict[str, dict[str, str]] = {row["id"]: row for row in settings_response.data}
 
     reminders_response = client.table("reminder_times").select("user_settings_id, time").execute()
 
-    # Group reminder times by user_settings_id
     reminders_by_user: dict[str, list[str]] = {}
     for row in reminders_response.data:
         uid = row["user_settings_id"]
         reminders_by_user.setdefault(uid, []).append(row["time"])
 
-    due_users: list[str] = []
+    due_users: list[tuple[str, str]] = []
     for settings_id, settings_row in settings_by_id.items():
         try:
             user_tz = ZoneInfo(settings_row["timezone"])
@@ -88,31 +82,28 @@ def get_due_users(now: datetime | None = None) -> list[str]:
         for time_str in reminders_by_user.get(settings_id, []):
             reminder_hour = int(time_str.split(":")[0])
             if current_hour == reminder_hour:
-                due_users.append(settings_row["telegram_chat_id"])
+                due_users.append((settings_row["telegram_chat_id"], settings_id))
                 break
 
     return due_users
 
 
-def select_memory(now: datetime | None = None) -> dict[str, str | int | None]:
+def select_memory(
+    *,
+    user_settings_id: str,
+    now: datetime | None = None,
+) -> dict[str, str | int | None]:
     """Select a memory for review using weighted random selection.
 
-    Queries all memories and applies a weighting formula:
-    - Novel (never reviewed): weight = days since created
-    - Reviewed: weight = days since last review / review count
-
-    This creates a natural spaced repetition curve — neglected and novel
-    memories surface more often; frequently-reviewed ones fade.
-
     Args:
+        user_settings_id: The user_settings UUID to scope the query.
         now: Override for the current time (for testing). Defaults to UTC now.
 
     Returns:
-        A single memory dict with id, content, source, created_at,
-        last_reviewed_at, and review_count.
+        A single memory dict.
 
     Raises:
-        RuntimeError: If no memories exist.
+        RuntimeError: If no memories exist for this user.
     """
     if now is None:
         now = datetime.now(UTC)
@@ -121,6 +112,7 @@ def select_memory(now: datetime | None = None) -> dict[str, str | int | None]:
     response = (
         client.table("memories")
         .select("id, content, source, created_at, last_reviewed_at, review_count")
+        .eq("user_settings_id", user_settings_id)
         .execute()
     )
 
@@ -134,7 +126,6 @@ def select_memory(now: datetime | None = None) -> dict[str, str | int | None]:
         days_since_created = (now - created_at).total_seconds() / 86400
 
         if mem["last_reviewed_at"] is None:
-            # Novel memory — weight by age since creation
             weight = max(days_since_created, 0.01)
         else:
             last_reviewed = datetime.fromisoformat(mem["last_reviewed_at"])
@@ -280,29 +271,33 @@ def update_memory(memory_id: str, review_count: int) -> None:
 async def main() -> None:
     """Run the spaced repetition reminder job.
 
-    Orchestrates the full flow: find due users, select a memory,
-    generate an insight, send via Telegram, and update the memory.
+    Orchestrates the full flow per user: find due users, select a memory
+    per user, generate an insight, send via Telegram, and update the memory.
     """
     due_users = await asyncio.to_thread(get_due_users)
     if not due_users:
         logger.info("No users due for a reminder at this hour.")
         return
 
-    memory = await asyncio.to_thread(select_memory)
+    for chat_id, user_settings_id in due_users:
+        try:
+            memory = await asyncio.to_thread(select_memory, user_settings_id=user_settings_id)
+        except RuntimeError:
+            logger.info("No memories for user %s, skipping.", chat_id)
+            continue
 
-    content = memory["content"]
-    source = memory.get("source")
-    memory_id = memory["id"]
-    review_count = memory["review_count"]
+        content = memory["content"]
+        source = memory.get("source")
+        memory_id = memory["id"]
+        review_count = memory["review_count"]
 
-    assert isinstance(content, str)
-    assert source is None or isinstance(source, str)
-    assert isinstance(memory_id, str)
-    assert isinstance(review_count, int)
+        assert isinstance(content, str)
+        assert source is None or isinstance(source, str)
+        assert isinstance(memory_id, str)
+        assert isinstance(review_count, int)
 
-    insight_resp = await generate_insight(content=content, source=source)
+        insight_resp = await generate_insight(content=content, source=source)
 
-    for chat_id in due_users:
         await send_reminder(
             chat_id=chat_id,
             content=content,
@@ -311,8 +306,8 @@ async def main() -> None:
             question=insight_resp.question,
         )
 
-    await asyncio.to_thread(update_memory, memory_id=memory_id, review_count=review_count)
-    logger.info("Reminder sent for memory %s to %d user(s).", memory_id, len(due_users))
+        await asyncio.to_thread(update_memory, memory_id=memory_id, review_count=review_count)
+        logger.info("Reminder sent for memory %s to user %s.", memory_id, chat_id)
 
 
 if __name__ == "__main__":

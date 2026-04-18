@@ -30,7 +30,7 @@ def mock_context() -> MagicMock:
 def mock_callback_update(mock_user: MagicMock) -> Update:
     """Create a mock Telegram Update with callback query."""
     mock_query = MagicMock()
-    mock_query.data = "save_yes|67890_12345"
+    mock_query.data = "save_yes|67890_12345|chat-123"
     mock_query.answer = AsyncMock()
     mock_query.edit_message_text = AsyncMock()
     mock_query.from_user = mock_user
@@ -78,7 +78,8 @@ async def test_handle_callback_approved(
 
     mock_context.bot_data["graph"] = mock_graph
 
-    await handle_callback(mock_callback_update, mock_context)
+    with patch("src.api.bot_callbacks.get_user_settings_id", return_value="settings-1"):
+        await handle_callback(mock_callback_update, mock_context)
 
     mock_graph.ainvoke.assert_called_once()
     call_args = mock_graph.ainvoke.call_args
@@ -97,7 +98,7 @@ async def test_handle_callback_cancelled(
     from src.api.bot_callbacks import handle_callback
 
     assert mock_callback_update.callback_query is not None
-    cast(Any, mock_callback_update.callback_query).data = "save_no|67890_12345"
+    cast(Any, mock_callback_update.callback_query).data = "save_no|67890_12345|chat-123"
 
     mock_graph = MagicMock()
     mock_result_msg = MagicMock()
@@ -106,7 +107,8 @@ async def test_handle_callback_cancelled(
 
     mock_context.bot_data["graph"] = mock_graph
 
-    await handle_callback(mock_callback_update, mock_context)
+    with patch("src.api.bot_callbacks.get_user_settings_id", return_value="settings-1"):
+        await handle_callback(mock_callback_update, mock_context)
 
     call_args = mock_graph.ainvoke.call_args
     command = call_args[0][0]

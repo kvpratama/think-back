@@ -25,6 +25,7 @@ from src.api.bot_keyboards import (
 from src.db.user_settings import (
     add_reminder,
     get_reminders,
+    get_user_settings_id,
     remove_reminder,
     update_timezone,
 )
@@ -129,15 +130,27 @@ async def handle_callback(
             logger.exception("Failed to edit reminders message")
         return
 
-    # Save confirmation: callback_data = "save_yes|<thread_id>" or "save_no|<thread_id>"
+    # Save confirmation: callback_data = "save_yes|<thread_id>|<chat_id>"
+    # or "save_no|<thread_id>|<chat_id>"
     if action not in ("save_yes", "save_no"):
         return
 
     thread_id = parts[1] if len(parts) > 1 else ""
+    callback_chat_id = parts[2] if len(parts) > 2 else ""
     approved = action == "save_yes"
 
+    user_settings_id = await asyncio.to_thread(get_user_settings_id, callback_chat_id)
+    if not user_settings_id:
+        try:
+            await query.edit_message_text(text="Please run /start first.")
+        except TelegramError:
+            logger.exception("Failed to edit message")
+        return
+
     graph = get_graph(context)
-    config = RunnableConfig({"configurable": {"thread_id": thread_id}})
+    config = RunnableConfig(
+        {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
+    )
 
     try:
         result = await graph.ainvoke(

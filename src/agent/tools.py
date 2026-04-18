@@ -6,6 +6,7 @@ to save and search memories in the vector database.
 
 from __future__ import annotations
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.types import interrupt
 
@@ -14,8 +15,30 @@ from src.db.vector_store import save_memory as db_save_memory
 from src.db.vector_store import search_memories as db_search_memories
 
 
+def _get_user_settings_id(config: RunnableConfig) -> str:
+    """Extract user_settings_id from RunnableConfig.
+
+    Args:
+        config: The LangGraph runtime config.
+
+    Returns:
+        The user_settings_id string.
+
+    Raises:
+        ValueError: If user_settings_id is missing from config.
+    """
+    user_settings_id = config.get("configurable", {}).get("user_settings_id")
+    if not user_settings_id:
+        raise ValueError("user_settings_id is required in config['configurable']")
+    return user_settings_id
+
+
 @tool
-async def search_memories_tool(query: str = "") -> str:
+async def search_memories_tool(
+    query: str = "",
+    *,
+    config: RunnableConfig,
+) -> str:
     """Search saved knowledge for memories related to the query.
 
     Use this when the user asks about their saved knowledge or wants
@@ -27,7 +50,8 @@ async def search_memories_tool(query: str = "") -> str:
     if not query:
         return "Please provide a search query."
 
-    results = await db_search_memories(query, top_k=5)
+    user_settings_id = _get_user_settings_id(config)
+    results = await db_search_memories(query, user_settings_id=user_settings_id, top_k=5)
 
     if not results:
         return "No saved memories found for this topic."
@@ -37,7 +61,12 @@ async def search_memories_tool(query: str = "") -> str:
 
 
 @tool
-async def save_memory_tool(content: str = "", insight: str = "") -> str:
+async def save_memory_tool(
+    content: str = "",
+    insight: str = "",
+    *,
+    config: RunnableConfig,
+) -> str:
     """Save a piece of knowledge or insight to memory.
 
     Use this when the user shares something they want to remember —
@@ -51,12 +80,14 @@ async def save_memory_tool(content: str = "", insight: str = "") -> str:
     if not content or not insight:
         return "Please provide both content and insight."
 
-    duplicates = await db_find_duplicates(content)
+    user_settings_id = _get_user_settings_id(config)
+
+    duplicates = await db_find_duplicates(content, user_settings_id=user_settings_id)
 
     confirmation = interrupt({"content": content, "insight": insight, "duplicates": duplicates})
 
     if not confirmation.get("approved", False):
         return "Save cancelled by user."
 
-    await db_save_memory(content, summary=insight)
+    await db_save_memory(content, summary=insight, user_settings_id=user_settings_id)
     return f"Memory saved: {insight}"

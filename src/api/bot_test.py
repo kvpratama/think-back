@@ -68,7 +68,8 @@ async def test_handle_message_natural_language(
 
     mock_context.bot_data["graph"] = mock_graph
 
-    await handle_message(mock_update, mock_context)
+    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+        await handle_message(mock_update, mock_context)
 
     assert mock_update.message is not None
     cast(Any, mock_update.message.reply_text).assert_called_once()
@@ -107,7 +108,7 @@ async def test_handle_message_interrupt_not_overwritten(
         }
 
     mock_interrupt = MagicMock()
-    mock_interrupt.value = {"insight": "Test insight", "content": "Test content"}
+    mock_interrupt.value = {"insight": "Test insight", "content": "Test content", "duplicates": []}
 
     mock_task = MagicMock()
     mock_task.interrupts = [mock_interrupt]
@@ -122,7 +123,8 @@ async def test_handle_message_interrupt_not_overwritten(
 
     mock_context.bot_data["graph"] = mock_graph
 
-    await handle_message(mock_update, mock_context)
+    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+        await handle_message(mock_update, mock_context)
 
     # The last edit_message_text call should be the confirmation UI, not the accumulated text.
     last_call = mock_context.bot.edit_message_text.call_args
@@ -169,7 +171,8 @@ async def test_handle_message_interrupt_shows_duplicates(
 
     mock_context.bot_data["graph"] = mock_graph
 
-    await handle_message(mock_update, mock_context)
+    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+        await handle_message(mock_update, mock_context)
 
     last_call = mock_context.bot.edit_message_text.call_args
     text = last_call.kwargs.get("text", last_call[1].get("text", ""))
@@ -211,7 +214,8 @@ async def test_handle_message_interrupt_no_duplicates(
 
     mock_context.bot_data["graph"] = mock_graph
 
-    await handle_message(mock_update, mock_context)
+    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+        await handle_message(mock_update, mock_context)
 
     last_call = mock_context.bot.edit_message_text.call_args
     text = last_call.kwargs.get("text", last_call[1].get("text", ""))
