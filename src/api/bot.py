@@ -225,6 +225,7 @@ def main() -> None:
     Uses webhook mode when WEBHOOK_URL is set (production),
     otherwise falls back to polling (local development).
     """
+    logging.basicConfig(level=logging.INFO)
     settings = get_settings()
     app = create_application()
 
