@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # COUPLING CONSTRAINT: This value must match the output dimensions of the
@@ -60,6 +60,13 @@ class Settings(BaseSettings):
 
     # Webhook (set WEBHOOK_URL to enable webhook mode; leave empty for polling)
     webhook_url: str = ""
+
+    @field_validator("webhook_url")
+    @classmethod
+    def _strip_trailing_slash(cls, v: str) -> str:
+        """Remove trailing slashes to avoid double-slash in URL construction."""
+        return v.rstrip("/")
+
     webhook_secret: SecretStr = SecretStr("")
     port: int = 8000
 
