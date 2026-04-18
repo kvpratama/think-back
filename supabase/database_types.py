@@ -41,36 +41,6 @@ AuthOauthResponseType: TypeAlias = Literal["code"]
 
 AuthOauthClientType: TypeAlias = Literal["public", "confidential"]
 
-class PublicMemories(BaseModel):
-    content: str = Field(alias="content")
-    created_at: datetime.datetime = Field(alias="created_at")
-    embedding: list[Any] = Field(alias="embedding")
-    id: uuid.UUID = Field(alias="id")
-    last_reviewed_at: Optional[datetime.datetime] = Field(alias="last_reviewed_at")
-    metadata: Optional[Json[Any]] = Field(alias="metadata")
-    review_count: int = Field(alias="review_count")
-    source: Optional[str] = Field(alias="source")
-
-class PublicMemoriesInsert(TypedDict):
-    content: Annotated[str, Field(alias="content")]
-    created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
-    embedding: Annotated[list[Any], Field(alias="embedding")]
-    id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
-    last_reviewed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="last_reviewed_at")]]
-    metadata: NotRequired[Annotated[Optional[Json[Any]], Field(alias="metadata")]]
-    review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
-    source: NotRequired[Annotated[Optional[str], Field(alias="source")]]
-
-class PublicMemoriesUpdate(TypedDict):
-    content: NotRequired[Annotated[str, Field(alias="content")]]
-    created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
-    embedding: NotRequired[Annotated[list[Any], Field(alias="embedding")]]
-    id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
-    last_reviewed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="last_reviewed_at")]]
-    metadata: NotRequired[Annotated[Optional[Json[Any]], Field(alias="metadata")]]
-    review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
-    source: NotRequired[Annotated[Optional[str], Field(alias="source")]]
-
 class PublicUserSettings(BaseModel):
     created_at: datetime.datetime = Field(alias="created_at")
     id: uuid.UUID = Field(alias="id")
@@ -108,4 +78,37 @@ class PublicReminderTimesUpdate(TypedDict):
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
     time: NotRequired[Annotated[datetime.time, Field(alias="time")]]
+    user_settings_id: NotRequired[Annotated[uuid.UUID, Field(alias="user_settings_id")]]
+
+class PublicMemories(BaseModel):
+    content: str = Field(alias="content")
+    created_at: datetime.datetime = Field(alias="created_at")
+    embedding: list[Any] = Field(alias="embedding")
+    id: uuid.UUID = Field(alias="id")
+    last_reviewed_at: Optional[datetime.datetime] = Field(alias="last_reviewed_at")
+    metadata: Optional[Json[Any]] = Field(alias="metadata")
+    review_count: int = Field(alias="review_count")
+    source: Optional[str] = Field(alias="source")
+    user_settings_id: uuid.UUID = Field(alias="user_settings_id")
+
+class PublicMemoriesInsert(TypedDict):
+    content: Annotated[str, Field(alias="content")]
+    created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
+    embedding: Annotated[list[Any], Field(alias="embedding")]
+    id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
+    last_reviewed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="last_reviewed_at")]]
+    metadata: NotRequired[Annotated[Optional[Json[Any]], Field(alias="metadata")]]
+    review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
+    source: NotRequired[Annotated[Optional[str], Field(alias="source")]]
+    user_settings_id: Annotated[uuid.UUID, Field(alias="user_settings_id")]
+
+class PublicMemoriesUpdate(TypedDict):
+    content: NotRequired[Annotated[str, Field(alias="content")]]
+    created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
+    embedding: NotRequired[Annotated[list[Any], Field(alias="embedding")]]
+    id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
+    last_reviewed_at: NotRequired[Annotated[Optional[datetime.datetime], Field(alias="last_reviewed_at")]]
+    metadata: NotRequired[Annotated[Optional[Json[Any]], Field(alias="metadata")]]
+    review_count: NotRequired[Annotated[int, Field(alias="review_count")]]
+    source: NotRequired[Annotated[Optional[str], Field(alias="source")]]
     user_settings_id: NotRequired[Annotated[uuid.UUID, Field(alias="user_settings_id")]]

@@ -11,7 +11,8 @@
 create table if not exists public.memories (
   -- Skill ref: schema-primary-keys — UUIDv4
   id              uuid        primary key default gen_random_uuid(),
-
+  user_settings_id uuid not null,
+  
   -- Skill ref: schema-data-types — use text not varchar(n), no artificial limits
   content         text        not null,
   metadata        jsonb       default '{}'::jsonb,
@@ -32,6 +33,12 @@ create table if not exists public.memories (
 -- Skill ref: security-rls-basics — enable RLS on all tables in Supabase
 -- Single-user app: service role key bypasses RLS; anon key is blocked
 alter table public.memories enable row level security;
+
+alter table public.memories
+    add constraint "memories_user_settings_id_fkey"
+    foreign key ("user_settings_id")
+    references "public"."user_settings"("id")
+    on delete cascade;
 
 
 -- ============================================================
@@ -60,3 +67,6 @@ create index if not exists memories_last_reviewed_at_idx
 create index if not exists memories_never_reviewed_idx
   on public.memories (created_at)
   where last_reviewed_at is null;
+
+create index if not exists memories_user_settings_id_idx
+  on public.memories (user_settings_id);

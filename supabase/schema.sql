@@ -66,7 +66,7 @@ CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA "extensions";
 
 
 
-CREATE OR REPLACE FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector", "filter" "jsonb" DEFAULT '{}'::"jsonb", "match_count" integer DEFAULT 5) RETURNS TABLE("id" "uuid", "content" "text", "metadata" "jsonb", "similarity" double precision)
+CREATE OR REPLACE FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector", "filter" "jsonb" DEFAULT '{}'::"jsonb", "match_count" integer DEFAULT 5, "p_user_settings_id" "uuid" DEFAULT NULL::"uuid") RETURNS TABLE("id" "uuid", "content" "text", "metadata" "jsonb", "similarity" double precision)
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public', 'extensions'
     AS $$
@@ -83,12 +83,11 @@ begin
     ) || COALESCE(memories.metadata, '{}'::jsonb) as metadata,
     1 - (memories.embedding <=> query_embedding) as similarity
   from memories
-  -- Apply optional metadata filter if passed by LangChain
-  -- For ThinkBack we rarely use this but it keeps the interface standard
   where
-    case
+    (p_user_settings_id IS NULL OR memories.user_settings_id = p_user_settings_id)
+    and case
       when filter = '{}'::jsonb then true
-      else memories.id::text = filter->>'id'  -- basic id filter support
+      else memories.id::text = filter->>'id'
     end
   order by memories.embedding <=> query_embedding
   limit match_count;
@@ -96,7 +95,7 @@ end;
 $$;
 
 
-ALTER FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector", "filter" "jsonb", "match_count" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."match_memories"("query_embedding" "extensions"."vector", "filter" "jsonb", "match_count" integer, "p_user_settings_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
@@ -119,6 +118,7 @@ SET default_table_access_method = "heap";
 
 CREATE TABLE IF NOT EXISTS "public"."memories" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_settings_id" "uuid" NOT NULL,
     "content" "text" NOT NULL,
     "metadata" "jsonb" DEFAULT '{}'::"jsonb",
     "source" "text",
@@ -192,7 +192,16 @@ CREATE INDEX "memories_never_reviewed_idx" ON "public"."memories" USING "btree" 
 
 
 
+CREATE INDEX "memories_user_settings_id_idx" ON "public"."memories" USING "btree" ("user_settings_id");
+
+
+
 CREATE OR REPLACE TRIGGER "user_settings_set_updated_at" BEFORE UPDATE ON "public"."user_settings" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+ALTER TABLE ONLY "public"."memories"
+    ADD CONSTRAINT "memories_user_settings_id_fkey" FOREIGN KEY ("user_settings_id") REFERENCES "public"."user_settings"("id") ON DELETE CASCADE;
 
 
 
