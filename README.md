@@ -1,4 +1,10 @@
-# ThinkBack 🧠
+<div align="center">
+
+<img src="assets/think-back-transparent.png" alt="ThinkBack Logo" width="200">
+
+# ThinkBack
+
+</div>
 
 **ThinkBack** is a memory-enhanced AI assistant that helps you capture, organize, and retrieve your personal knowledge through conversation. Built with **LangGraph** and **Supabase**, it provides long-term memory for your interactions via a Telegram bot interface.
 
