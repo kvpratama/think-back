@@ -49,8 +49,8 @@ async def start_command(
 ) -> None:
     """Handle the /start command.
 
-    Sends full welcome for new users, or a short welcome-back + timezone
-    picker for returning users.
+    Sends the welcome message to all users. For new users, also prompts for
+    timezone selection and initializes default reminders.
 
     Args:
         update: The Telegram update.
@@ -117,7 +117,7 @@ async def chat_member_update(
     if user_settings_id:
         await asyncio.to_thread(insert_default_reminders, user_settings_id)
 
-    keyboard = build_timezone_keyboard(chat_member.chat.id)
+    keyboard = build_timezone_keyboard(chat_member.chat.id, onboarding=True)
     await context.bot.send_message(
         chat_id=chat_member.chat.id,
         text="🌍 What's your time zone?",
