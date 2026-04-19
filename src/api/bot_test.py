@@ -48,7 +48,9 @@ async def test_handle_message_natural_language(
     mock_update: Update,
     mock_context: MagicMock,
 ) -> None:
-    """Test that handle_message processes natural language input."""
+    """Test that handle_message processes natural language input through batching."""
+    import asyncio
+
     from src.api.bot import handle_message
 
     async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
@@ -72,6 +74,9 @@ async def test_handle_message_natural_language(
         "src.api.bot.get_user_settings_id", return_value="settings-1"
     ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
+
+        # Wait for batch processing (timeout is 1.0s)
+        await asyncio.sleep(1.2)
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -149,6 +154,8 @@ async def test_handle_message_interrupt_not_overwritten(
     mock_context: MagicMock,
 ) -> None:
     """Test that the finally block does not overwrite the save-confirmation UI."""
+    import asyncio
+
     from src.api.bot import handle_message
 
     async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
@@ -178,6 +185,9 @@ async def test_handle_message_interrupt_not_overwritten(
     ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
 
+        # Wait for batch processing
+        await asyncio.sleep(1.2)
+
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
     mock_graph.astream_events.assert_called_once()
@@ -195,6 +205,8 @@ async def test_handle_message_interrupt_shows_duplicates(
     mock_context: MagicMock,
 ) -> None:
     """Test that the save confirmation UI surfaces duplicate memories."""
+    import asyncio
+
     from src.api.bot import handle_message
 
     async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
@@ -235,6 +247,9 @@ async def test_handle_message_interrupt_shows_duplicates(
     ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
 
+        # Wait for batch processing
+        await asyncio.sleep(1.2)
+
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
     mock_graph.astream_events.assert_called_once()
@@ -254,6 +269,8 @@ async def test_handle_message_interrupt_no_duplicates(
     mock_context: MagicMock,
 ) -> None:
     """Test that the save confirmation UI works when no duplicates are found."""
+    import asyncio
+
     from src.api.bot import handle_message
 
     async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
@@ -286,6 +303,9 @@ async def test_handle_message_interrupt_no_duplicates(
         "src.api.bot.get_user_settings_id", return_value="settings-1"
     ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
+
+        # Wait for batch processing
+        await asyncio.sleep(1.2)
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -375,3 +395,18 @@ async def test_unknown_command(mock_update: Update, mock_context: MagicMock) -> 
     cast(Any, mock_update.message.reply_text).assert_called_once_with(
         "Unknown command. Use /help to see available commands."
     )
+
+
+async def test_commands_bypass_batching(mock_update: Update, mock_context: MagicMock) -> None:
+    """Test that commands are not batched."""
+    from src.api.bot import handle_message, message_batcher
+
+    # Set command text
+    assert mock_update.message is not None
+    mock_update.message.text = "/help"
+
+    # Call handle_message
+    await handle_message(mock_update, mock_context)
+
+    # Verify message was not added to batcher
+    assert str(mock_update.message.chat.id) not in message_batcher.buffers
