@@ -86,7 +86,7 @@ async def test_start_command_existing_user_shows_welcome_back_only(
     assert len(calls) == 1
 
     welcome_text = calls[0].args[0] if calls[0].args else calls[0].kwargs.get("text", "")
-    assert "Welcome back" in welcome_text
+    assert "Welcome to ThinkBack" in welcome_text
 
 
 async def test_timezone_command_shows_offset_picker(

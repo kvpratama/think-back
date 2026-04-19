@@ -287,6 +287,120 @@ async def test_handle_callback_add_reminder_shows_db_error_message(
     assert "Couldn't add reminder" in text
 
 
+async def test_handle_timezone_onboarding_sends_reminders_followup(
+    mock_context: MagicMock,
+) -> None:
+    """Test that timezone callback with onboarding flag sends reminders panel."""
+    from src.api.bot_callbacks import handle_callback
+
+    mock_query = MagicMock()
+    mock_query.data = "tz|7|67890|1"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.message = MagicMock()
+    mock_query.message.chat.send_message = AsyncMock()
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    with (
+        patch("src.api.bot_callbacks.update_timezone"),
+        patch("src.api.bot_callbacks.get_user_settings_id", return_value="settings-1"),
+        patch(
+            "src.api.bot_callbacks.get_reminders",
+            return_value=[{"id": "r1", "time": "12:00:00"}],
+        ),
+    ):
+        await handle_callback(mock_upd, mock_context)
+
+    mock_query.message.chat.send_message.assert_called_once()
+    call_kwargs = mock_query.message.chat.send_message.call_args.kwargs
+    assert "reply_markup" in call_kwargs
+
+
+async def test_handle_timezone_no_onboarding_skips_reminders_followup(
+    mock_context: MagicMock,
+) -> None:
+    """Test that timezone callback without onboarding flag skips reminders panel."""
+    from src.api.bot_callbacks import handle_callback
+
+    mock_query = MagicMock()
+    mock_query.data = "tz|7|67890|0"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.message = MagicMock()
+    mock_query.message.chat.send_message = AsyncMock()
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    with patch("src.api.bot_callbacks.update_timezone"):
+        await handle_callback(mock_upd, mock_context)
+
+    mock_query.message.chat.send_message.assert_not_called()
+
+
+async def test_handle_rem_done_onboarding_sends_final_message(
+    mock_context: MagicMock,
+) -> None:
+    """Test that rem_done with onboarding flag sends the final onboarding message."""
+    from src.api.bot_callbacks import handle_callback
+
+    mock_query = MagicMock()
+    mock_query.data = "rem_done|aaa|1"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.message = MagicMock()
+    mock_query.message.chat.send_message = AsyncMock()
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    with patch(
+        "src.api.bot_callbacks.get_reminders",
+        return_value=[{"id": "r1", "time": "12:00:00"}],
+    ):
+        await handle_callback(mock_upd, mock_context)
+
+    mock_query.edit_message_text.assert_called_once()
+    edit_text = mock_query.edit_message_text.call_args.kwargs.get("text", "")
+    assert "12:00" in edit_text
+
+    mock_query.message.chat.send_message.assert_called_once()
+    final_text = mock_query.message.chat.send_message.call_args.kwargs.get("text", "")
+    assert "first thought" in final_text
+
+
+async def test_handle_rem_done_no_onboarding_skips_final_message(
+    mock_context: MagicMock,
+) -> None:
+    """Test that rem_done without onboarding flag does not send the final message."""
+    from src.api.bot_callbacks import handle_callback
+
+    mock_query = MagicMock()
+    mock_query.data = "rem_done|aaa|0"
+    mock_query.answer = AsyncMock()
+    mock_query.edit_message_text = AsyncMock()
+    mock_query.message = MagicMock()
+    mock_query.message.chat.send_message = AsyncMock()
+
+    mock_upd = MagicMock(spec=Update)
+    mock_upd.callback_query = mock_query
+    mock_upd.message = None
+
+    with patch(
+        "src.api.bot_callbacks.get_reminders",
+        return_value=[{"id": "r1", "time": "12:00:00"}],
+    ):
+        await handle_callback(mock_upd, mock_context)
+
+    mock_query.edit_message_text.assert_called_once()
+    mock_query.message.chat.send_message.assert_not_called()
+
+
 async def test_handle_callback_unknown_action_does_not_invoke_graph(
     mock_context: MagicMock,
 ) -> None:
