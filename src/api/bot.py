@@ -11,12 +11,13 @@ import time
 
 from dotenv import load_dotenv
 from langchain_core.runnables import RunnableConfig
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
+    ChatMemberHandler,
     CommandHandler,
     ContextTypes,
     MessageHandler,
@@ -25,6 +26,7 @@ from telegram.ext import (
 
 from src.api.bot_callbacks import handle_callback
 from src.api.bot_commands import (
+    chat_member_update,
     help_command,
     reminders_command,
     start_command,
@@ -220,6 +222,22 @@ async def handle_message(
                 )
 
 
+async def _post_init(application: Application) -> None:
+    """Set bot commands after the application initializes.
+
+    Args:
+        application: The Telegram Application instance.
+    """
+    await application.bot.set_my_commands(
+        [
+            BotCommand("start", "Get started or reset your intro"),
+            BotCommand("timezone", "Set your local timezone"),
+            BotCommand("reminders", "Customize when insights resurface"),
+            BotCommand("help", "Show available commands"),
+        ]
+    )
+
+
 def create_application() -> Application:
     """Create and configure the Telegram bot application.
 
@@ -229,7 +247,10 @@ def create_application() -> Application:
     settings = get_settings()
 
     application = (
-        Application.builder().token(settings.telegram_bot_token.get_secret_value()).build()
+        Application.builder()
+        .token(settings.telegram_bot_token.get_secret_value())
+        .post_init(_post_init)
+        .build()
     )
 
     application.add_handler(CommandHandler("start", start_command))
@@ -239,6 +260,7 @@ def create_application() -> Application:
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(CallbackQueryHandler(handle_callback))
+    application.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
 
     return application
 

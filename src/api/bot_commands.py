@@ -22,24 +22,7 @@ from src.db.user_settings import (
     upsert_user_settings,
 )
 
-
-async def start_command(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-) -> None:
-    """Handle the /start command.
-
-    Upserts user settings and shows a timezone picker for new users.
-
-    Args:
-        update: The Telegram update.
-        context: The Telegram context.
-    """
-    chat_id = str(update.message.chat.id)  # type: ignore[union-attr]
-    is_new = await asyncio.to_thread(upsert_user_settings, chat_id)
-
-    await update.message.reply_text(  # type: ignore[union-attr]
-        """🧠 <b>Welcome to ThinkBack</b>
+WELCOME_MESSAGE = """🧠 <b>Welcome to ThinkBack</b>
 
 Your space to capture ideas, revisit them, and actually remember what matters.
 
@@ -57,20 +40,86 @@ You can customize reminder times anytime with /reminders.
 • ❓ See all commands: /help
 
 Start by sharing your first thought 👇
-""",  # noqa: E501
-        parse_mode=ParseMode.HTML,
-    )
+"""  # noqa: E501
+
+
+async def start_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle the /start command.
+
+    Sends full welcome for new users, or a short welcome-back + timezone
+    picker for returning users.
+
+    Args:
+        update: The Telegram update.
+        context: The Telegram context.
+    """
+    chat_id = str(update.message.chat.id)  # type: ignore[union-attr]
+    is_new = await asyncio.to_thread(upsert_user_settings, chat_id)
 
     if is_new:
+        await update.message.reply_text(  # type: ignore[union-attr]
+            WELCOME_MESSAGE,
+            parse_mode=ParseMode.HTML,
+        )
+
         user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
         if user_settings_id:
             await asyncio.to_thread(insert_default_reminders, user_settings_id)
-
-        keyboard = build_timezone_keyboard(update.message.chat.id)  # type: ignore[union-attr]
+    else:
         await update.message.reply_text(  # type: ignore[union-attr]
-            "🌍 What's your time zone?",
-            reply_markup=keyboard,
+            "👋 <b>Welcome back to ThinkBack!</b>",
+            parse_mode=ParseMode.HTML,
         )
+
+    keyboard = build_timezone_keyboard(update.message.chat.id)  # type: ignore[union-attr]
+    await update.message.reply_text(  # type: ignore[union-attr]
+        "🌍 What's your time zone?",
+        reply_markup=keyboard,
+    )
+
+
+async def chat_member_update(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle ChatMemberUpdated events for auto-welcome.
+
+    Sends the welcome message and timezone picker when a user first opens
+    the bot (status changes to 'member').
+
+    Args:
+        update: The Telegram update.
+        context: The Telegram context.
+    """
+    chat_member = update.my_chat_member
+    if not chat_member or chat_member.new_chat_member.status != "member":
+        return
+
+    chat_id = str(chat_member.chat.id)
+    is_new = await asyncio.to_thread(upsert_user_settings, chat_id)
+
+    if not is_new:
+        return
+
+    await context.bot.send_message(
+        chat_id=chat_member.chat.id,
+        text=WELCOME_MESSAGE,
+        parse_mode=ParseMode.HTML,
+    )
+
+    user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
+    if user_settings_id:
+        await asyncio.to_thread(insert_default_reminders, user_settings_id)
+
+    keyboard = build_timezone_keyboard(chat_member.chat.id)
+    await context.bot.send_message(
+        chat_id=chat_member.chat.id,
+        text="🌍 What's your time zone?",
+        reply_markup=keyboard,
+    )
 
 
 async def timezone_command(

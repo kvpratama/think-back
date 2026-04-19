@@ -84,9 +84,50 @@ async def test_handle_message_natural_language(
     mock_context.bot.edit_message_text.assert_called()
 
 
+async def test_create_application_sets_post_init() -> None:
+    """Test that create_application sets a post_init callback."""
+    from src.api.bot import create_application
+
+    with patch("src.api.bot.get_settings") as mock_settings:
+        mock_settings.return_value = MagicMock()
+        mock_settings.return_value.telegram_bot_token.get_secret_value.return_value = "test-token"
+
+        app = create_application()
+
+    assert app.post_init is not None
+
+
+async def test_post_init_sets_bot_commands() -> None:
+    """Test that post_init registers the four bot commands."""
+    from src.api.bot import create_application
+
+    with patch("src.api.bot.get_settings") as mock_settings:
+        mock_settings.return_value = MagicMock()
+        mock_settings.return_value.telegram_bot_token.get_secret_value.return_value = "test-token"
+
+        app = create_application()
+
+    mock_bot = AsyncMock()
+    mock_app = MagicMock()
+    mock_app.bot = mock_bot
+
+    assert app.post_init is not None
+    await app.post_init(mock_app)
+
+    mock_bot.set_my_commands.assert_called_once()
+    commands = mock_bot.set_my_commands.call_args[0][0]
+    command_names = [c.command for c in commands]
+    assert command_names == ["start", "timezone", "reminders", "help"]
+
+
 async def test_create_application_registers_handlers() -> None:
     """Test that create_application registers the expected handlers."""
-    from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
+    from telegram.ext import (
+        CallbackQueryHandler,
+        ChatMemberHandler,
+        CommandHandler,
+        MessageHandler,
+    )
 
     from src.api.bot import create_application
 
@@ -100,6 +141,7 @@ async def test_create_application_registers_handlers() -> None:
         assert CommandHandler in handler_types
         assert MessageHandler in handler_types
         assert CallbackQueryHandler in handler_types
+        assert ChatMemberHandler in handler_types
 
 
 async def test_handle_message_interrupt_not_overwritten(
