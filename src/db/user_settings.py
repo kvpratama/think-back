@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict, cast
 
 from src.db.client import get_supabase_client
 
@@ -44,7 +44,7 @@ def upsert_user_settings(telegram_chat_id: str) -> bool:
         )
         .execute()
     )
-    row = result.data[0]
+    row = cast(list[dict[str, Any]], result.data)[0]
     created = datetime.fromisoformat(row["created_at"])
     updated = datetime.fromisoformat(row["updated_at"])
     return created == updated
@@ -68,7 +68,7 @@ def get_user_settings_id(telegram_chat_id: str) -> str | None:
     )
     if not result.data:
         return None
-    return result.data[0]["id"]
+    return cast(list[dict[str, Any]], result.data)[0]["id"]
 
 
 def insert_default_reminders(user_settings_id: str) -> None:
@@ -118,7 +118,7 @@ def get_reminders(user_settings_id: str) -> list[ReminderRow]:
         .order("time")
         .execute()
     )
-    return result.data
+    return cast(list[ReminderRow], result.data)
 
 
 def add_reminder(user_settings_id: str, time_str: str) -> AddReminderResult | bool:

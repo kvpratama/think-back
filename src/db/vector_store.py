@@ -12,6 +12,7 @@ import asyncio
 import logging
 import uuid
 from functools import lru_cache
+from typing import Any, cast
 
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
@@ -77,7 +78,7 @@ async def save_memory(
 
     if not result.data:
         raise RuntimeError("Failed to insert memory: no data returned")
-    row = result.data[0]
+    row = cast(list[dict[str, Any]], result.data)[0]
     return {"id": uuid.UUID(row["id"]), "content": content}
 
 
@@ -117,7 +118,7 @@ async def search_memories(
     )
 
     results: list[Memory] = []
-    for row in response.data or []:
+    for row in cast(list[dict[str, Any]], response.data) or []:
         similarity = row.get("similarity", 0.0)
         if similarity >= threshold:
             results.append(
@@ -160,7 +161,7 @@ async def find_duplicates(
     )
     exact_contents: set[str] = set()
     results: list[DuplicateMatch] = []
-    for row in exact_response.data:
+    for row in cast(list[dict[str, Any]], exact_response.data):
         exact_contents.add(row["content"])
         results.append(
             {
