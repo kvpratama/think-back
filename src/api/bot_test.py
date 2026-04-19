@@ -89,6 +89,60 @@ async def test_handle_message_natural_language(
     mock_context.bot.edit_message_text.assert_called()
 
 
+async def test_split_messages_combined(mock_context: MagicMock) -> None:
+    """Test that rapid successive messages are combined before processing."""
+    import asyncio
+
+    from src.api.bot import handle_message, message_batcher
+
+    await message_batcher.shutdown()
+    try:
+        update1 = MagicMock(spec=Update)
+        update1.message = MagicMock()
+        update1.message.text = "First part of long message"
+        update1.message.chat.id = 123
+        update1.message.from_user = MagicMock(spec=User)
+        update1.message.from_user.id = 1
+        update1.message.reply_text = AsyncMock(return_value=MagicMock(message_id=1))
+
+        update2 = MagicMock(spec=Update)
+        update2.message = MagicMock()
+        update2.message.text = "Second part of long message"
+        update2.message.chat.id = 123
+        update2.message.from_user = MagicMock(spec=User)
+        update2.message.from_user.id = 1
+        update2.message.reply_text = AsyncMock(return_value=MagicMock(message_id=2))
+
+        async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+            yield {
+                "event": "on_chain_end",
+                "name": "LangGraph",
+                "data": {"output": {"messages": [MagicMock(content="Combined response")]}},
+            }
+
+        mock_state = MagicMock()
+        mock_state.next = []
+        mock_state.values = {"messages": [MagicMock(content="Combined response")]}
+
+        mock_graph = MagicMock()
+        mock_graph.astream_events = MagicMock(side_effect=mock_astream)
+        mock_graph.aget_state = AsyncMock(return_value=mock_state)
+        mock_context.bot_data["graph"] = mock_graph
+
+        with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+            await handle_message(update1, mock_context)
+            await handle_message(update2, mock_context)
+
+            # Wait for batching timeout (1.0s) and processing.
+            await asyncio.sleep(1.2)
+
+        mock_graph.astream_events.assert_called_once()
+        messages = mock_graph.astream_events.call_args.args[0]["messages"]
+        assert messages[0]["content"] == "First part of long message\n\nSecond part of long message"
+    finally:
+        await message_batcher.shutdown()
+
+
 async def test_create_application_sets_post_init() -> None:
     """Test that create_application sets a post_init callback."""
     from src.api.bot import create_application
