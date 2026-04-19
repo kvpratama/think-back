@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "langchain>=1.2.12",
-    "langchain-community>=0.4.1",
     "langchain-google-genai>=4.2.1",
     "langchain-openai>=1.1.11",
     "langgraph>=1.1.2",
@@ -14,7 +13,7 @@ dependencies = [
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.2.2",
     "python-telegram-bot[webhooks]>=22.7",
-    "supabase==2.18.1", # Temporary downgrade supabase until langchain-community has new update > 0.4.1
+    "supabase>=2.28.3",
 ]
 
 [dependency-groups]

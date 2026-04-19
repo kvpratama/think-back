@@ -5,6 +5,7 @@ Usage:
 """
 
 import asyncio
+from typing import Any, cast
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -34,7 +35,7 @@ async def main() -> None:
         )
         .execute()
     )
-    user1_id = user1.data[0]["id"]
+    user1_id = cast(list[dict[str, Any]], user1.data)[0]["id"]
 
     user2 = (
         client.table("user_settings")
@@ -44,7 +45,7 @@ async def main() -> None:
         )
         .execute()
     )
-    user2_id = user2.data[0]["id"]
+    user2_id = cast(list[dict[str, Any]], user2.data)[0]["id"]
 
     print(f"  User 1 ID: {user1_id}")
     print(f"  User 2 ID: {user2_id}")
@@ -78,7 +79,8 @@ async def main() -> None:
 
     # Verify memory was saved to DB
     user1_memories = client.table("memories").select("*").eq("user_settings_id", user1_id).execute()
-    if len(user1_memories.data) > 0 and "Consistency" in user1_memories.data[0]["content"]:
+    user1_rows = cast(list[dict[str, Any]], user1_memories.data)
+    if len(user1_rows) > 0 and "Consistency" in user1_rows[0]["content"]:
         print("  ✓ Memory saved to database")
     else:
         print("  ✗ FAIL: Memory not found in database!")
@@ -113,7 +115,8 @@ async def main() -> None:
 
     # Verify memory was saved to DB
     user2_memories = client.table("memories").select("*").eq("user_settings_id", user2_id).execute()
-    if len(user2_memories.data) > 0 and "Python" in user2_memories.data[0]["content"]:
+    user2_rows = cast(list[dict[str, Any]], user2_memories.data)
+    if len(user2_rows) > 0 and "Python" in user2_rows[0]["content"]:
         print("  ✓ Memory saved to database")
     else:
         print("  ✗ FAIL: Memory not found in database!")
@@ -219,8 +222,8 @@ async def main() -> None:
         client.table("memories").select("content").eq("user_settings_id", user2_id).execute()
     )
 
-    user1_contents = [m["content"] for m in user1_all.data]
-    user2_contents = [m["content"] for m in user2_all.data]
+    user1_contents = [m["content"] for m in cast(list[dict[str, Any]], user1_all.data)]
+    user2_contents = [m["content"] for m in cast(list[dict[str, Any]], user2_all.data)]
 
     if any("Python" in c for c in user1_contents):
         print("  ✗ FAIL: User 1 has User 2's memory!")

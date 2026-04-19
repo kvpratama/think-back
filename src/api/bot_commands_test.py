@@ -66,10 +66,10 @@ async def test_start_command_upserts_settings_and_shows_timezone_picker(
     assert "reply_markup" in tz_call_kwargs
 
 
-async def test_start_command_existing_user_no_timezone_picker(
+async def test_start_command_existing_user_shows_welcome_back_only(
     mock_update: Update, mock_context: MagicMock
 ) -> None:
-    """Test that /start for existing user does not show timezone picker or insert reminders."""
+    """Test that /start for existing user shows welcome back without timezone picker."""
     from src.api.bot_commands import start_command
 
     with (
@@ -84,6 +84,9 @@ async def test_start_command_existing_user_no_timezone_picker(
     assert mock_update.message is not None
     calls = cast(Any, mock_update.message.reply_text).call_args_list
     assert len(calls) == 1
+
+    welcome_text = calls[0].args[0] if calls[0].args else calls[0].kwargs.get("text", "")
+    assert "Welcome to ThinkBack" in welcome_text
 
 
 async def test_timezone_command_shows_offset_picker(
@@ -137,6 +140,92 @@ async def test_reminders_command_no_settings(mock_update: Update, mock_context: 
     call = cast(Any, mock_update.message.reply_text).call_args
     text = call.args[0] if call.args else call.kwargs.get("text", "")
     assert "/start" in text
+
+
+@pytest.fixture
+def mock_chat_member_update() -> Update:
+    """Create a mock ChatMemberUpdated update for a new user joining."""
+    mock_chat = MagicMock()
+    mock_chat.id = 67890
+
+    mock_new_member = MagicMock()
+    mock_new_member.status = "member"
+
+    mock_chat_member = MagicMock()
+    mock_chat_member.chat = mock_chat
+    mock_chat_member.new_chat_member = mock_new_member
+
+    mock_update = MagicMock(spec=Update)
+    mock_update.my_chat_member = mock_chat_member
+    mock_update.effective_chat = mock_chat
+
+    return mock_update
+
+
+async def test_chat_member_update_new_user_sends_welcome(
+    mock_chat_member_update: Update, mock_context: MagicMock
+) -> None:
+    """Test that ChatMemberUpdated sends welcome + timezone for new users."""
+    from src.api.bot_commands import chat_member_update
+
+    with (
+        patch("src.api.bot_commands.upsert_user_settings", return_value=True) as mock_upsert,
+        patch("src.api.bot_commands.get_user_settings_id", return_value="aaa-bbb"),
+        patch("src.api.bot_commands.insert_default_reminders") as mock_reminders,
+    ):
+        await chat_member_update(mock_chat_member_update, mock_context)
+
+    mock_upsert.assert_called_once_with("67890")
+    mock_reminders.assert_called_once_with("aaa-bbb")
+
+    calls = mock_context.bot.send_message.call_args_list
+    assert len(calls) == 2
+
+    welcome_text = calls[0].kwargs.get("text", "")
+    assert "Welcome to ThinkBack" in welcome_text
+
+    tz_call_kwargs = calls[1].kwargs
+    assert "reply_markup" in tz_call_kwargs
+
+
+async def test_chat_member_update_existing_user_no_welcome(
+    mock_chat_member_update: Update, mock_context: MagicMock
+) -> None:
+    """Test that ChatMemberUpdated does nothing for existing users."""
+    from src.api.bot_commands import chat_member_update
+
+    with (
+        patch("src.api.bot_commands.upsert_user_settings", return_value=False),
+        patch("src.api.bot_commands.insert_default_reminders") as mock_reminders,
+    ):
+        await chat_member_update(mock_chat_member_update, mock_context)
+
+    mock_reminders.assert_not_called()
+    mock_context.bot.send_message.assert_not_called()
+
+
+async def test_chat_member_update_non_member_status_ignored(
+    mock_context: MagicMock,
+) -> None:
+    """Test that ChatMemberUpdated ignores non-member statuses (e.g., kicked)."""
+    from src.api.bot_commands import chat_member_update
+
+    mock_chat = MagicMock()
+    mock_chat.id = 67890
+
+    mock_new_member = MagicMock()
+    mock_new_member.status = "kicked"
+
+    mock_chat_member = MagicMock()
+    mock_chat_member.chat = mock_chat
+    mock_chat_member.new_chat_member = mock_new_member
+
+    mock_update = MagicMock(spec=Update)
+    mock_update.my_chat_member = mock_chat_member
+
+    await chat_member_update(mock_update, mock_context)
+
+    mock_context.bot.send_message.assert_not_called()
 
 
 async def test_help_command_lists_commands(mock_update: Update, mock_context: MagicMock) -> None:

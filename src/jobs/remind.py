@@ -11,6 +11,7 @@ import logging
 import random
 from datetime import UTC, datetime
 from functools import lru_cache
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from langchain.chat_models import init_chat_model
@@ -55,12 +56,13 @@ def get_due_users(now: datetime | None = None) -> list[tuple[str, str]]:
     if not settings_response.data:
         return []
 
-    settings_by_id: dict[str, dict[str, str]] = {row["id"]: row for row in settings_response.data}
+    rows = cast(list[dict[str, Any]], settings_response.data)
+    settings_by_id: dict[str, dict[str, str]] = {row["id"]: row for row in rows}
 
     reminders_response = client.table("reminder_times").select("user_settings_id, time").execute()
 
     reminders_by_user: dict[str, list[str]] = {}
-    for row in reminders_response.data:
+    for row in cast(list[dict[str, Any]], reminders_response.data):
         uid = row["user_settings_id"]
         reminders_by_user.setdefault(uid, []).append(row["time"])
 
@@ -116,7 +118,7 @@ def select_memory(
         .execute()
     )
 
-    candidates = response.data
+    candidates = cast(list[dict[str, Any]], response.data)
     if not candidates:
         raise RuntimeError("No memories available for review.")
 

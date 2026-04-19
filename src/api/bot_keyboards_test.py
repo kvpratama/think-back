@@ -73,10 +73,10 @@ class TestBuildRemindersMessage:
         reminders = cast(list[ReminderRow], [{"id": "r1", "time": "08:00:00"}])
         _, keyboard = build_reminders_message(reminders, "test-uuid-123")
         buttons = [btn for row in keyboard.inline_keyboard for btn in row]
-        # Remove button should have format: rm_rem|{idx}|{user_settings_id}
-        assert buttons[0].callback_data == "rm_rem|0|test-uuid-123"
-        # Add button should have format: add_rem|{user_settings_id}
-        assert buttons[1].callback_data == "add_rem|test-uuid-123"
+        # Remove button should have format: rm_rem|{idx}|{user_settings_id}|{ob}
+        assert buttons[0].callback_data == "rm_rem|0|test-uuid-123|0"
+        # Add button should have format: add_rem|{user_settings_id}|{ob}
+        assert buttons[1].callback_data == "add_rem|test-uuid-123|0"
 
 
 class TestBuildHourPickerKeyboard:
@@ -94,7 +94,7 @@ class TestBuildHourPickerKeyboard:
         """Callback data should include user_settings_id for parsing."""
         keyboard = build_hour_picker_keyboard("test-uuid-456")
         buttons = [btn for row in keyboard.inline_keyboard for btn in row]
-        # Each button should have format: add_hr|{hour}|{user_settings_id}
-        assert buttons[0].callback_data == "add_hr|0|test-uuid-456"
-        assert buttons[12].callback_data == "add_hr|12|test-uuid-456"
-        assert buttons[23].callback_data == "add_hr|23|test-uuid-456"
+        # Each button should have format: add_hr|{hour}|{user_settings_id}|{ob}
+        assert buttons[0].callback_data == "add_hr|0|test-uuid-456|0"
+        assert buttons[12].callback_data == "add_hr|12|test-uuid-456|0"
+        assert buttons[23].callback_data == "add_hr|23|test-uuid-456|0"

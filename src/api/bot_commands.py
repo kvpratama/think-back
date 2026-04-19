@@ -22,6 +22,26 @@ from src.db.user_settings import (
     upsert_user_settings,
 )
 
+WELCOME_MESSAGE = """🧠 <b>Welcome to ThinkBack</b>
+
+Your space to capture ideas, revisit them, and actually remember what matters.
+
+<b>Here's how you can use this space:</b>
+• 💡 Share an insight → I'll remember it for you
+• 🔍 Ask questions → I'll search your saved knowledge
+• 💬 Just chat → I'm here for that too
+
+<b>⏰ Spaced Repetition</b>
+From time to time, I'll bring back things you've saved—so they don't fade away.
+You can adjust when that happens anytime with /reminders
+
+<b>Quick setup:</b>
+• 🌍 Set your timezone: /timezone
+• ⏰ Set your reminder times: /reminders
+• ❓ See all commands: /help
+
+"""
+
 
 async def start_command(
     update: Update,
@@ -29,7 +49,8 @@ async def start_command(
 ) -> None:
     """Handle the /start command.
 
-    Upserts user settings and shows a timezone picker for new users.
+    Sends the welcome message to all users. For new users, also prompts for
+    timezone selection and initializes default reminders.
 
     Args:
         update: The Telegram update.
@@ -38,39 +59,70 @@ async def start_command(
     chat_id = str(update.message.chat.id)  # type: ignore[union-attr]
     is_new = await asyncio.to_thread(upsert_user_settings, chat_id)
 
-    await update.message.reply_text(  # type: ignore[union-attr]
-        """🧠 <b>Welcome to ThinkBack</b>
-
-Your space to capture ideas, revisit them, and actually remember what matters.
-
-<b>Here's how you can use this space:</b>
-• 💡 Share an insight → I'll help you save it
-• 🔍 Ask questions → I'll search your saved knowledge
-• 💬 Just chat → I'm here for that too
-
-<b>⏰ Spaced Repetition</b>
-Saved insights come back to you later (default is 12:00 noon) with reflections to strengthen your memory.
-You can customize reminder times anytime with /reminders.
-
-<b>Quick setup:</b>
-• 🌍 Set your timezone: /timezone
-• ❓ See all commands: /help
-
-Start by sharing your first thought 👇
-""",  # noqa: E501
-        parse_mode=ParseMode.HTML,
-    )
-
     if is_new:
+        await update.message.reply_text(  # type: ignore[union-attr]
+            WELCOME_MESSAGE,
+            parse_mode=ParseMode.HTML,
+        )
+
         user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
         if user_settings_id:
             await asyncio.to_thread(insert_default_reminders, user_settings_id)
 
-        keyboard = build_timezone_keyboard(update.message.chat.id)  # type: ignore[union-attr]
+        keyboard = build_timezone_keyboard(
+            update.message.chat.id,  # type: ignore[union-attr]
+            onboarding=True,
+        )
         await update.message.reply_text(  # type: ignore[union-attr]
             "🌍 What's your time zone?",
             reply_markup=keyboard,
         )
+    else:
+        await update.message.reply_text(  # type: ignore[union-attr]
+            WELCOME_MESSAGE,
+            parse_mode=ParseMode.HTML,
+        )
+
+
+async def chat_member_update(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle ChatMemberUpdated events for auto-welcome.
+
+    Sends the welcome message and timezone picker when a user first opens
+    the bot (status changes to 'member').
+
+    Args:
+        update: The Telegram update.
+        context: The Telegram context.
+    """
+    chat_member = update.my_chat_member
+    if not chat_member or chat_member.new_chat_member.status != "member":
+        return
+
+    chat_id = str(chat_member.chat.id)
+    is_new = await asyncio.to_thread(upsert_user_settings, chat_id)
+
+    if not is_new:
+        return
+
+    await context.bot.send_message(
+        chat_id=chat_member.chat.id,
+        text=WELCOME_MESSAGE,
+        parse_mode=ParseMode.HTML,
+    )
+
+    user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
+    if user_settings_id:
+        await asyncio.to_thread(insert_default_reminders, user_settings_id)
+
+    keyboard = build_timezone_keyboard(chat_member.chat.id, onboarding=True)
+    await context.bot.send_message(
+        chat_id=chat_member.chat.id,
+        text="🌍 What's your time zone?",
+        reply_markup=keyboard,
+    )
 
 
 async def timezone_command(

@@ -12,6 +12,7 @@ Usage:
 
 import asyncio
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from src.db.client import get_supabase_client
 from src.db.vector_store import find_duplicates, save_memory, search_memories
@@ -37,7 +38,7 @@ async def main() -> None:
         )
         .execute()
     )
-    user1_id = user1.data[0]["id"]
+    user1_id = cast(list[dict[str, Any]], user1.data)[0]["id"]
 
     user2 = (
         client.table("user_settings")
@@ -47,7 +48,7 @@ async def main() -> None:
         )
         .execute()
     )
-    user2_id = user2.data[0]["id"]
+    user2_id = cast(list[dict[str, Any]], user2.data)[0]["id"]
 
     print(f"  User 1 ID: {user1_id}")
     print(f"  User 2 ID: {user2_id}")
