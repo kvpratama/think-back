@@ -27,20 +27,20 @@ WELCOME_MESSAGE = """🧠 <b>Welcome to ThinkBack</b>
 Your space to capture ideas, revisit them, and actually remember what matters.
 
 <b>Here's how you can use this space:</b>
-• 💡 Share an insight → I'll help you save it
+• 💡 Share an insight → I'll remember it for you
 • 🔍 Ask questions → I'll search your saved knowledge
 • 💬 Just chat → I'm here for that too
 
 <b>⏰ Spaced Repetition</b>
-Saved insights come back to you later (default is 12:00 noon) with reflections to strengthen your memory.
-You can customize reminder times anytime with /reminders.
+From time to time, I'll bring back things you've saved—so they don't fade away.
+You can adjust when that happens anytime with /reminders
 
 <b>Quick setup:</b>
 • 🌍 Set your timezone: /timezone
+• ⏰ Set your reminder times: /reminders
 • ❓ See all commands: /help
 
-Start by sharing your first thought 👇
-"""  # noqa: E501
+"""
 
 
 async def start_command(
@@ -68,17 +68,20 @@ async def start_command(
         user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
         if user_settings_id:
             await asyncio.to_thread(insert_default_reminders, user_settings_id)
+
+        keyboard = build_timezone_keyboard(
+            update.message.chat.id,  # type: ignore[union-attr]
+            onboarding=True,
+        )
+        await update.message.reply_text(  # type: ignore[union-attr]
+            "🌍 What's your time zone?",
+            reply_markup=keyboard,
+        )
     else:
         await update.message.reply_text(  # type: ignore[union-attr]
-            "👋 <b>Welcome back to ThinkBack!</b>",
+            WELCOME_MESSAGE,
             parse_mode=ParseMode.HTML,
         )
-
-    keyboard = build_timezone_keyboard(update.message.chat.id)  # type: ignore[union-attr]
-    await update.message.reply_text(  # type: ignore[union-attr]
-        "🌍 What's your time zone?",
-        reply_markup=keyboard,
-    )
 
 
 async def chat_member_update(

@@ -66,10 +66,10 @@ async def test_start_command_upserts_settings_and_shows_timezone_picker(
     assert "reply_markup" in tz_call_kwargs
 
 
-async def test_start_command_existing_user_shows_welcome_back_and_timezone(
+async def test_start_command_existing_user_shows_welcome_back_only(
     mock_update: Update, mock_context: MagicMock
 ) -> None:
-    """Test that /start for existing user shows welcome back and timezone picker."""
+    """Test that /start for existing user shows welcome back without timezone picker."""
     from src.api.bot_commands import start_command
 
     with (
@@ -83,13 +83,10 @@ async def test_start_command_existing_user_shows_welcome_back_and_timezone(
 
     assert mock_update.message is not None
     calls = cast(Any, mock_update.message.reply_text).call_args_list
-    assert len(calls) == 2
+    assert len(calls) == 1
 
     welcome_text = calls[0].args[0] if calls[0].args else calls[0].kwargs.get("text", "")
     assert "Welcome back" in welcome_text
-
-    tz_call_kwargs = calls[1].kwargs if calls[1].kwargs else {}
-    assert "reply_markup" in tz_call_kwargs
 
 
 async def test_timezone_command_shows_offset_picker(

@@ -55,6 +55,7 @@ async def handle_callback(
     if action == "tz":
         offset = int(parts[1])
         chat_id = parts[2]
+        onboarding = len(parts) > 3 and parts[3] == "1"
         if offset == 0:
             tz_str = "UTC"
         else:
@@ -65,6 +66,18 @@ async def handle_callback(
             await query.edit_message_text(text=f"Timezone set to {label} ✅")
         except TelegramError:
             logger.exception("Failed to edit timezone message")
+
+        if onboarding:
+            user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
+            if user_settings_id:
+                reminders = await asyncio.to_thread(get_reminders, user_settings_id)
+                text, keyboard = build_reminders_message(
+                    reminders, user_settings_id, onboarding=True
+                )
+                try:
+                    await query.message.chat.send_message(text=text, reply_markup=keyboard)  # ty:ignore[unresolved-attribute]
+                except TelegramError:
+                    logger.exception("Failed to send reminders follow-up")
         return
 
     if action == "rm_rem":
@@ -72,11 +85,12 @@ async def handle_callback(
             return
         idx = int(parts[1])
         user_settings_id = parts[2]
+        ob = len(parts) > 3 and parts[3] == "1"
         reminders = await asyncio.to_thread(get_reminders, user_settings_id)
         if idx < len(reminders):
             await asyncio.to_thread(remove_reminder, reminders[idx]["id"])
         reminders = await asyncio.to_thread(get_reminders, user_settings_id)
-        text, keyboard = build_reminders_message(reminders, user_settings_id)
+        text, keyboard = build_reminders_message(reminders, user_settings_id, onboarding=ob)
         try:
             await query.edit_message_text(text=text, reply_markup=keyboard)
         except TelegramError:
@@ -87,7 +101,8 @@ async def handle_callback(
         if not query.message:
             return
         user_settings_id = parts[1]
-        keyboard = build_hour_picker_keyboard(user_settings_id)
+        ob = len(parts) > 2 and parts[2] == "1"
+        keyboard = build_hour_picker_keyboard(user_settings_id, onboarding=ob)
         try:
             await query.edit_message_text(
                 text="🕐 Select a time for the new reminder:",
@@ -102,6 +117,7 @@ async def handle_callback(
             return
         hour = int(parts[1])
         user_settings_id = parts[2]
+        ob = len(parts) > 3 and parts[3] == "1"
         time_str = f"{hour:02d}:00"
         result = await asyncio.to_thread(add_reminder, user_settings_id, time_str)
 
@@ -123,11 +139,36 @@ async def handle_callback(
             return
 
         reminders = await asyncio.to_thread(get_reminders, user_settings_id)
-        text, keyboard = build_reminders_message(reminders, user_settings_id)
+        text, keyboard = build_reminders_message(reminders, user_settings_id, onboarding=ob)
         try:
             await query.edit_message_text(text=text, reply_markup=keyboard)
         except TelegramError:
             logger.exception("Failed to edit reminders message")
+        return
+
+    if action == "rem_done":
+        user_settings_id = parts[1]
+        ob = len(parts) > 2 and parts[2] == "1"
+        reminders = await asyncio.to_thread(get_reminders, user_settings_id)
+        if reminders:
+            lines = ["⏰ Reminders set ✅", ""]
+            for r in reminders:
+                lines.append(f"  • {r['time'][:5]}")
+            text = "\n".join(lines)
+        else:
+            text = "⏰ No reminders set."
+        try:
+            await query.edit_message_text(text=text)
+        except TelegramError:
+            logger.exception("Failed to edit rem_done message")
+
+        if ob and query.message:
+            try:
+                await query.message.chat.send_message(
+                    text="You're all set.\nShare your first thought 👇"
+                )
+            except TelegramError:
+                logger.exception("Failed to send onboarding final message")
         return
 
     # Save confirmation: callback_data = "save_yes|<thread_id>|<chat_id>"
