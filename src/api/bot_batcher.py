@@ -130,7 +130,11 @@ class MessageBatcher:
 
             # Use first message's update and context
             first_message = messages[0]
-            user_id = first_message.update.message.from_user.id  # ty:ignore[unresolved-attribute]
+            message = first_message.update.message
+            if message is None or message.from_user is None:
+                logger.warning("Cannot determine user_id for chat %s, skipping batch", chat_id)
+                return
+            user_id = message.from_user.id
 
             logger.info(
                 "Processing batch for chat %s: %d messages, %d chars",
