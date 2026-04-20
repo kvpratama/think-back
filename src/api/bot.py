@@ -146,7 +146,7 @@ async def process_batch(
     last_update_time = time.monotonic()
     update_interval = 0.3
     telegram_char_limit = 4000
-    draft_id = random.randint(1, 2**31)
+    draft_id = random.randint(1, 2**31 - 1)
 
     try:
         async for chunk in graph.astream(

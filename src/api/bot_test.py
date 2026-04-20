@@ -167,6 +167,13 @@ async def test_split_messages_combined(mock_context: MagicMock) -> None:
             update1.message.from_user.id,
         )
 
+        # Verify messages were combined
+        mock_graph.astream.assert_called_once()
+        call_args = mock_graph.astream.call_args[0]
+        combined_content = call_args[0]["messages"][0]["content"]
+        assert "First part of long message" in combined_content
+        assert "Second part of long message" in combined_content
+
 
 async def test_handle_message_filters_tool_messages(
     mock_update: Update,
