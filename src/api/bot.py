@@ -157,15 +157,15 @@ async def process_batch(
             msg, metadata = chunk
 
             # Send typing indicator for tool call
-            # if not isinstance(msg, str) and msg.type == "tool":
-            #     try:
-            #         await context.bot.send_chat_action(
-            #             chat_id=int(chat_id),
-            #             action="typing",
-            #         )
-            #     except TelegramError:
-            #         pass
-            #     continue
+            if not isinstance(msg, str) and msg.type == "tool":
+                try:
+                    await context.bot.send_chat_action(
+                        chat_id=int(chat_id),
+                        action=constants.ChatAction.TYPING,
+                    )
+                except TelegramError:
+                    pass
+                continue
 
             # Only stream AI messages
             if not isinstance(msg, str) and msg.type == "ai" and msg.content:
