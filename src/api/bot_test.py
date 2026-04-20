@@ -71,6 +71,7 @@ async def test_handle_message_natural_language(
     message_batcher = mock_context.bot_data["message_batcher"]
 
     mock_msg = MagicMock()
+    mock_msg.type = "ai"
     mock_msg.content = "I've noted your insight."
 
     async def mock_astream(
@@ -138,6 +139,7 @@ async def test_split_messages_combined(mock_context: MagicMock) -> None:
     update2.message.reply_text = AsyncMock(return_value=MagicMock(message_id=2))
 
     mock_msg = MagicMock()
+    mock_msg.type = "ai"
     mock_msg.content = "Combined response"
 
     async def mock_astream(
@@ -353,6 +355,7 @@ async def test_handle_message_interrupt_not_overwritten(
     from src.api.bot import handle_message
 
     mock_msg = MagicMock()
+    mock_msg.type = "ai"
     mock_msg.content = "Let me save that"
 
     async def mock_astream(
@@ -412,6 +415,7 @@ async def test_handle_message_interrupt_shows_duplicates(
     from src.api.bot import handle_message
 
     mock_msg = MagicMock()
+    mock_msg.type = "ai"
     mock_msg.content = "Let me save that"
 
     async def mock_astream(
@@ -483,6 +487,7 @@ async def test_handle_message_interrupt_no_duplicates(
     from src.api.bot import handle_message
 
     mock_msg = MagicMock()
+    mock_msg.type = "ai"
     mock_msg.content = "Let me save that"
 
     async def mock_astream(
