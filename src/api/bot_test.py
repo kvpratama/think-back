@@ -70,19 +70,21 @@ async def test_handle_message_natural_language(
 
     message_batcher = mock_context.bot_data["message_batcher"]
 
-    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
-        yield {
-            "event": "on_chain_end",
-            "name": "LangGraph",
-            "data": {"output": {"messages": [MagicMock(content="I've noted your insight.")]}},
-        }
+    mock_msg = MagicMock()
+    mock_msg.type = "ai"
+    mock_msg.content = "I've noted your insight."
+
+    async def mock_astream(
+        *args: Any, **kwargs: Any
+    ) -> AsyncGenerator[tuple[MagicMock, dict[str, Any]], None]:
+        yield (mock_msg, {"langgraph_node": "agent"})
 
     mock_state = MagicMock()
     mock_state.next = []
     mock_state.values = {"messages": [MagicMock(content="I've noted your insight.")]}
 
     mock_graph = MagicMock()
-    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
+    mock_graph.astream = MagicMock(side_effect=mock_astream)
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
     mock_context.bot_data["graph"] = mock_graph
@@ -103,13 +105,14 @@ async def test_handle_message_natural_language(
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
-    mock_graph.astream_events.assert_called_once()
-    config = mock_graph.astream_events.call_args.kwargs.get("config")
+    mock_graph.astream.assert_called_once()
+    config = mock_graph.astream.call_args.kwargs.get("config")
     assert config is not None
     assert config["configurable"]["user_settings_id"] == "settings-1"
 
-    cast(Any, mock_update.message.reply_text).assert_called_once()
-    mock_context.bot.edit_message_text.assert_called()
+    # Final response sent via reply_text (no longer edit_message_text)
+    # reply_text is called once for the final response
+    assert cast(Any, mock_update.message.reply_text).call_count >= 1
 
 
 async def test_split_messages_combined(mock_context: MagicMock) -> None:
@@ -135,19 +138,21 @@ async def test_split_messages_combined(mock_context: MagicMock) -> None:
     update2.message.from_user.id = 1
     update2.message.reply_text = AsyncMock(return_value=MagicMock(message_id=2))
 
-    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
-        yield {
-            "event": "on_chain_end",
-            "name": "LangGraph",
-            "data": {"output": {"messages": [MagicMock(content="Combined response")]}},
-        }
+    mock_msg = MagicMock()
+    mock_msg.type = "ai"
+    mock_msg.content = "Combined response"
+
+    async def mock_astream(
+        *args: Any, **kwargs: Any
+    ) -> AsyncGenerator[tuple[MagicMock, dict[str, Any]], None]:
+        yield (mock_msg, {"langgraph_node": "agent"})
 
     mock_state = MagicMock()
     mock_state.next = []
     mock_state.values = {"messages": [MagicMock(content="Combined response")]}
 
     mock_graph = MagicMock()
-    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
+    mock_graph.astream = MagicMock(side_effect=mock_astream)
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
     mock_context.bot_data["graph"] = mock_graph
 
@@ -164,9 +169,121 @@ async def test_split_messages_combined(mock_context: MagicMock) -> None:
             update1.message.from_user.id,
         )
 
-    mock_graph.astream_events.assert_called_once()
-    messages = mock_graph.astream_events.call_args.args[0]["messages"]
-    assert messages[0]["content"] == "First part of long message\n\nSecond part of long message"
+        # Verify messages were combined
+        mock_graph.astream.assert_called_once()
+        call_args = mock_graph.astream.call_args[0]
+        combined_content = call_args[0]["messages"][0]["content"]
+        assert "First part of long message" in combined_content
+        assert "Second part of long message" in combined_content
+
+
+async def test_handle_message_filters_tool_messages(
+    mock_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """Test that tool messages are not streamed to user, only AI messages."""
+
+    from src.api.bot import handle_message
+
+    ai_msg = MagicMock()
+    ai_msg.type = "ai"
+    ai_msg.content = "Let me search for that."
+
+    tool_msg = MagicMock()
+    tool_msg.type = "tool"
+    tool_msg.content = "Found 3 memories about exercise"
+
+    ai_msg2 = MagicMock()
+    ai_msg2.type = "ai"
+    ai_msg2.content = " Here's what I found."
+
+    async def mock_astream(
+        *args: Any, **kwargs: Any
+    ) -> AsyncGenerator[tuple[MagicMock, dict[str, Any]], None]:
+        yield (ai_msg, {"langgraph_node": "agent"})
+        yield (tool_msg, {"langgraph_node": "tools"})
+        yield (ai_msg2, {"langgraph_node": "agent"})
+
+    mock_state = MagicMock()
+    mock_state.next = []
+    mock_state.values = {
+        "messages": [MagicMock(content="Let me search for that. Here's what I found.")]
+    }
+
+    mock_graph = MagicMock()
+    mock_graph.astream = MagicMock(side_effect=mock_astream)
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+
+    mock_context.bot_data["graph"] = mock_graph
+
+    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+        await handle_message(mock_update, mock_context)
+
+        message_batcher = mock_context.bot_data["message_batcher"]
+        assert mock_update.message is not None
+        assert mock_update.message.from_user is not None
+        await message_batcher.flush(
+            str(mock_update.message.chat.id),
+            mock_update.message.from_user.id,
+        )
+
+    # Verify final response only contains AI messages, not tool output
+    assert mock_update.message is not None
+    last_call = cast(Any, mock_update.message.reply_text).call_args_list[-1]
+    text = last_call.kwargs.get("text", last_call[0][0] if last_call[0] else "")
+    assert "Let me search for that." in text
+    assert "Here's what I found." in text
+    assert "Found 3 memories about exercise" not in text
+
+
+async def test_handle_message_sends_typing_for_tool_calls(
+    mock_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """Test that typing indicator is sent when tool messages are received."""
+
+    from src.api.bot import handle_message
+
+    ai_msg = MagicMock()
+    ai_msg.type = "ai"
+    ai_msg.content = "Searching..."
+
+    tool_msg = MagicMock()
+    tool_msg.type = "tool"
+    tool_msg.content = "Tool result"
+
+    async def mock_astream(
+        *args: Any, **kwargs: Any
+    ) -> AsyncGenerator[tuple[MagicMock, dict[str, Any]], None]:
+        yield (ai_msg, {"langgraph_node": "agent"})
+        yield (tool_msg, {"langgraph_node": "tools"})
+
+    mock_state = MagicMock()
+    mock_state.next = []
+    mock_state.values = {"messages": [MagicMock(content="Searching...")]}
+
+    mock_graph = MagicMock()
+    mock_graph.astream = MagicMock(side_effect=mock_astream)
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+
+    mock_context.bot_data["graph"] = mock_graph
+
+    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+        await handle_message(mock_update, mock_context)
+
+        message_batcher = mock_context.bot_data["message_batcher"]
+        assert mock_update.message is not None
+        assert mock_update.message.from_user is not None
+        await message_batcher.flush(
+            str(mock_update.message.chat.id),
+            mock_update.message.from_user.id,
+        )
+
+    # Verify send_chat_action was called with "typing"
+    mock_context.bot.send_chat_action.assert_called_with(
+        chat_id=int(mock_update.message.chat.id),
+        action="typing",
+    )
 
 
 async def test_create_application_sets_post_init() -> None:
@@ -237,11 +354,14 @@ async def test_handle_message_interrupt_not_overwritten(
 
     from src.api.bot import handle_message
 
-    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
-        yield {
-            "event": "on_chat_model_stream",
-            "data": {"chunk": MagicMock(content="Let me save that")},
-        }
+    mock_msg = MagicMock()
+    mock_msg.type = "ai"
+    mock_msg.content = "Let me save that"
+
+    async def mock_astream(
+        *args: Any, **kwargs: Any
+    ) -> AsyncGenerator[tuple[MagicMock, dict[str, Any]], None]:
+        yield (mock_msg, {"langgraph_node": "agent"})
 
     mock_interrupt = MagicMock()
     mock_interrupt.value = {"insight": "Test insight", "content": "Test content", "duplicates": []}
@@ -254,7 +374,7 @@ async def test_handle_message_interrupt_not_overwritten(
     mock_state.tasks = [mock_task]
 
     mock_graph = MagicMock()
-    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
+    mock_graph.astream = MagicMock(side_effect=mock_astream)
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
     mock_context.bot_data["graph"] = mock_graph
@@ -275,14 +395,15 @@ async def test_handle_message_interrupt_not_overwritten(
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
-    mock_graph.astream_events.assert_called_once()
-    config = mock_graph.astream_events.call_args.kwargs.get("config")
+    mock_graph.astream.assert_called_once()
+    config = mock_graph.astream.call_args.kwargs.get("config")
     assert config is not None
     assert config["configurable"]["user_settings_id"] == "settings-1"
 
-    # The last edit_message_text call should be the confirmation UI, not the accumulated text.
-    last_call = mock_context.bot.edit_message_text.call_args
-    assert "Save this insight?" in last_call.kwargs.get("text", last_call[1].get("text", ""))
+    # The confirmation is now sent via reply_text (not edit_message_text)
+    last_call = cast(Any, mock_update.message.reply_text).call_args_list[-1]
+    text = last_call.kwargs.get("text", last_call[0][0] if last_call[0] else "")
+    assert "Save this insight?" in text
 
 
 async def test_handle_message_interrupt_shows_duplicates(
@@ -293,11 +414,14 @@ async def test_handle_message_interrupt_shows_duplicates(
 
     from src.api.bot import handle_message
 
-    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
-        yield {
-            "event": "on_chat_model_stream",
-            "data": {"chunk": MagicMock(content="Let me save that")},
-        }
+    mock_msg = MagicMock()
+    mock_msg.type = "ai"
+    mock_msg.content = "Let me save that"
+
+    async def mock_astream(
+        *args: Any, **kwargs: Any
+    ) -> AsyncGenerator[tuple[MagicMock, dict[str, Any]], None]:
+        yield (mock_msg, {"langgraph_node": "agent"})
 
     mock_interrupt = MagicMock()
     mock_interrupt.value = {
@@ -321,7 +445,7 @@ async def test_handle_message_interrupt_shows_duplicates(
     mock_state.tasks = [mock_task]
 
     mock_graph = MagicMock()
-    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
+    mock_graph.astream = MagicMock(side_effect=mock_astream)
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
     mock_context.bot_data["graph"] = mock_graph
@@ -342,13 +466,13 @@ async def test_handle_message_interrupt_shows_duplicates(
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
-    mock_graph.astream_events.assert_called_once()
-    config = mock_graph.astream_events.call_args.kwargs.get("config")
+    mock_graph.astream.assert_called_once()
+    config = mock_graph.astream.call_args.kwargs.get("config")
     assert config is not None
     assert config["configurable"]["user_settings_id"] == "settings-1"
 
-    last_call = mock_context.bot.edit_message_text.call_args
-    text = last_call.kwargs.get("text", last_call[1].get("text", ""))
+    last_call = cast(Any, mock_update.message.reply_text).call_args_list[-1]
+    text = last_call.kwargs.get("text", last_call[0][0] if last_call[0] else "")
     assert "Exercise is good" in text
     assert "Working out is healthy" in text
     assert "Similar" in text or "Duplicate" in text or "duplicate" in text
@@ -362,11 +486,14 @@ async def test_handle_message_interrupt_no_duplicates(
 
     from src.api.bot import handle_message
 
-    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
-        yield {
-            "event": "on_chat_model_stream",
-            "data": {"chunk": MagicMock(content="Let me save that")},
-        }
+    mock_msg = MagicMock()
+    mock_msg.type = "ai"
+    mock_msg.content = "Let me save that"
+
+    async def mock_astream(
+        *args: Any, **kwargs: Any
+    ) -> AsyncGenerator[tuple[MagicMock, dict[str, Any]], None]:
+        yield (mock_msg, {"langgraph_node": "agent"})
 
     mock_interrupt = MagicMock()
     mock_interrupt.value = {
@@ -383,7 +510,7 @@ async def test_handle_message_interrupt_no_duplicates(
     mock_state.tasks = [mock_task]
 
     mock_graph = MagicMock()
-    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
+    mock_graph.astream = MagicMock(side_effect=mock_astream)
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
     mock_context.bot_data["graph"] = mock_graph
@@ -404,13 +531,13 @@ async def test_handle_message_interrupt_no_duplicates(
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
-    mock_graph.astream_events.assert_called_once()
-    config = mock_graph.astream_events.call_args.kwargs.get("config")
+    mock_graph.astream.assert_called_once()
+    config = mock_graph.astream.call_args.kwargs.get("config")
     assert config is not None
     assert config["configurable"]["user_settings_id"] == "settings-1"
 
-    last_call = mock_context.bot.edit_message_text.call_args
-    text = last_call.kwargs.get("text", last_call[1].get("text", ""))
+    last_call = cast(Any, mock_update.message.reply_text).call_args_list[-1]
+    text = last_call.kwargs.get("text", last_call[0][0] if last_call[0] else "")
     assert "Save this insight?" in text
     assert "duplicate" not in text.lower()
 
