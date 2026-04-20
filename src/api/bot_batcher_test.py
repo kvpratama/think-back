@@ -30,14 +30,16 @@ async def test_add_message_creates_buffer(mock_update, mock_context) -> None:
 
     await batcher.add_message(
         chat_id="123",
+        user_id=1,
         text="Hello",
         update=mock_update,
         context=mock_context,
     )
 
-    assert "123" in batcher.buffers
-    assert len(batcher.buffers["123"]) == 1
-    assert batcher.buffers["123"][0].text == "Hello"
+    key = ("123", 1)
+    assert key in batcher.buffers
+    assert len(batcher.buffers[key]) == 1
+    assert batcher.buffers[key][0].text == "Hello"
 
 
 async def test_add_message_starts_timer(mock_update, mock_context) -> None:
@@ -46,13 +48,15 @@ async def test_add_message_starts_timer(mock_update, mock_context) -> None:
 
     await batcher.add_message(
         chat_id="123",
+        user_id=1,
         text="Hello",
         update=mock_update,
         context=mock_context,
     )
 
-    assert "123" in batcher.timers
-    assert not batcher.timers["123"].done()
+    key = ("123", 1)
+    assert key in batcher.timers
+    assert not batcher.timers[key].done()
 
 
 async def test_process_batch_combines_messages(mock_update, mock_context) -> None:
@@ -61,12 +65,12 @@ async def test_process_batch_combines_messages(mock_update, mock_context) -> Non
     batcher = MessageBatcher(timeout=0.1, process_callback=process_callback)
 
     # Add multiple messages
-    await batcher.add_message("123", "First", mock_update, mock_context)
-    await batcher.add_message("123", "Second", mock_update, mock_context)
-    await batcher.add_message("123", "Third", mock_update, mock_context)
+    await batcher.add_message("123", 1, "First", mock_update, mock_context)
+    await batcher.add_message("123", 1, "Second", mock_update, mock_context)
+    await batcher.add_message("123", 1, "Third", mock_update, mock_context)
 
     # Wait for timer task to complete
-    await batcher.timers["123"]
+    await batcher.timers[("123", 1)]
 
     # Verify callback was called with combined text
     process_callback.assert_called_once()
@@ -84,8 +88,8 @@ async def test_shutdown_cancels_timers(mock_update, mock_context) -> None:
     batcher = MessageBatcher(timeout=10.0, process_callback=process_callback)
 
     # Add messages to multiple chats
-    await batcher.add_message("123", "Message 1", mock_update, mock_context)
-    await batcher.add_message("456", "Message 2", mock_update, mock_context)
+    await batcher.add_message("123", 1, "Message 1", mock_update, mock_context)
+    await batcher.add_message("456", 2, "Message 2", mock_update, mock_context)
 
     assert len(batcher.timers) == 2
 
@@ -106,12 +110,12 @@ async def test_timer_reset_on_new_message(mock_update, mock_context) -> None:
     batcher = MessageBatcher(timeout=0.1, process_callback=process_callback)
 
     # Add first message
-    await batcher.add_message("123", "First", mock_update, mock_context)
-    first_timer = batcher.timers["123"]
+    await batcher.add_message("123", 1, "First", mock_update, mock_context)
+    first_timer = batcher.timers[("123", 1)]
 
     # Add second message immediately (should reset timer)
-    await batcher.add_message("123", "Second", mock_update, mock_context)
-    second_timer = batcher.timers["123"]
+    await batcher.add_message("123", 1, "Second", mock_update, mock_context)
+    second_timer = batcher.timers[("123", 1)]
 
     # Verify timer was replaced
     assert first_timer != second_timer
@@ -147,20 +151,20 @@ async def test_concurrent_chats_independent(mock_context) -> None:
     update_456.message.from_user.id = 2
 
     # Add messages to different chats
-    await batcher.add_message("123", "Message A", update_123, mock_context)
-    await batcher.add_message("456", "Message B", update_456, mock_context)
+    await batcher.add_message("123", 1, "Message A", update_123, mock_context)
+    await batcher.add_message("456", 2, "Message B", update_456, mock_context)
 
     # Verify independent buffers
     assert len(batcher.buffers) == 2
-    assert len(batcher.buffers["123"]) == 1
-    assert len(batcher.buffers["456"]) == 1
+    assert len(batcher.buffers[("123", 1)]) == 1
+    assert len(batcher.buffers[("456", 2)]) == 1
 
     # Verify independent timers
     assert len(batcher.timers) == 2
-    assert "123" in batcher.timers
-    assert "456" in batcher.timers
-    timer_123 = batcher.timers["123"]
-    timer_456 = batcher.timers["456"]
+    assert ("123", 1) in batcher.timers
+    assert ("456", 2) in batcher.timers
+    timer_123 = batcher.timers[("123", 1)]
+    timer_456 = batcher.timers[("456", 2)]
 
     # Wait for both timers to complete
     await asyncio.gather(timer_123, timer_456)
@@ -193,14 +197,14 @@ async def test_add_message_not_blocked_during_callback(mock_context) -> None:
     update.message.from_user.id = 1
 
     # Add a message and let the timer fire
-    await batcher.add_message("123", "First", update, mock_context)
-    timer = batcher.timers["123"]
+    await batcher.add_message("123", 1, "First", update, mock_context)
+    timer = batcher.timers[("123", 1)]
 
     # Wait for the callback to start executing
     await callback_entered.wait()
 
     # add_message should NOT be blocked while callback runs
-    add_task = asyncio.create_task(batcher.add_message("123", "Second", update, mock_context))
+    add_task = asyncio.create_task(batcher.add_message("123", 1, "Second", update, mock_context))
     try:
         await asyncio.wait_for(add_task, timeout=0.5)
     except TimeoutError:
@@ -210,8 +214,8 @@ async def test_add_message_not_blocked_during_callback(mock_context) -> None:
     callback_release.set()
     await timer
 
-    assert "123" in batcher.buffers
-    assert batcher.buffers["123"][0].text == "Second"
+    assert ("123", 1) in batcher.buffers
+    assert batcher.buffers[("123", 1)][0].text == "Second"
 
 
 async def test_empty_messages_filtered(mock_update, mock_context) -> None:
@@ -222,13 +226,51 @@ async def test_empty_messages_filtered(mock_update, mock_context) -> None:
     batcher = MessageBatcher(timeout=0.1, process_callback=process_callback)
 
     # Try to add empty messages
-    await batcher.add_message("123", "", mock_update, mock_context)
-    await batcher.add_message("123", "   ", mock_update, mock_context)
+    await batcher.add_message("123", 1, "", mock_update, mock_context)
+    await batcher.add_message("123", 1, "   ", mock_update, mock_context)
 
     # Verify no buffer created
-    assert "123" not in batcher.buffers
-    assert "123" not in batcher.timers
+    assert ("123", 1) not in batcher.buffers
+    assert ("123", 1) not in batcher.timers
 
     # Wait to ensure no processing happens
     await asyncio.sleep(0.15)
     process_callback.assert_not_called()
+
+
+async def test_per_user_batching_in_same_chat(mock_context) -> None:
+    """Test that messages from different users in the same chat are batched separately."""
+    import asyncio
+
+    process_callback = AsyncMock()
+    batcher = MessageBatcher(timeout=0.1, process_callback=process_callback)
+
+    # Create updates for different users in the same chat
+    update_123_user1 = MagicMock()
+    update_123_user1.message.text = "User 1 message"
+    update_123_user1.message.chat.id = 123
+    update_123_user1.message.from_user.id = 1
+
+    update_123_user2 = MagicMock()
+    update_123_user2.message.text = "User 2 message"
+    update_123_user2.message.chat.id = 123
+    update_123_user2.message.from_user.id = 2
+
+    # Add messages
+    await batcher.add_message("123", 1, "Msg from 1", update_123_user1, mock_context)
+    await batcher.add_message("123", 2, "Msg from 2", update_123_user2, mock_context)
+
+    # Verify separate buffers
+    assert len(batcher.buffers) == 2
+    assert ("123", 1) in batcher.buffers
+    assert ("123", 2) in batcher.buffers
+
+    # Wait for timers
+    await asyncio.gather(batcher.timers[("123", 1)], batcher.timers[("123", 2)])
+
+    # Verify both processed
+    assert process_callback.call_count == 2
+
+    # Verify correct user_ids passed to callback
+    call_user_ids = {call[1]["user_id"] for call in process_callback.call_args_list}
+    assert call_user_ids == {1, 2}

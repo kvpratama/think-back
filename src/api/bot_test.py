@@ -94,8 +94,12 @@ async def test_handle_message_natural_language(
 
         # Process batch immediately instead of waiting for timeout
         assert mock_update.message is not None
+        assert mock_update.message.from_user is not None
         message_batcher = mock_context.bot_data["message_batcher"]
-        await message_batcher.flush(str(mock_update.message.chat.id))
+        await message_batcher.flush(
+            str(mock_update.message.chat.id),
+            mock_update.message.from_user.id,
+        )
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -153,7 +157,12 @@ async def test_split_messages_combined(mock_context: MagicMock) -> None:
 
         # Process batch immediately instead of waiting for timeout
         message_batcher = mock_context.bot_data["message_batcher"]
-        await message_batcher.flush(str(update1.message.chat.id))
+        assert update1.message is not None
+        assert update1.message.from_user is not None
+        await message_batcher.flush(
+            str(update1.message.chat.id),
+            update1.message.from_user.id,
+        )
 
     mock_graph.astream_events.assert_called_once()
     messages = mock_graph.astream_events.call_args.args[0]["messages"]
@@ -258,7 +267,11 @@ async def test_handle_message_interrupt_not_overwritten(
         # Process batch immediately instead of waiting for timeout
         message_batcher = mock_context.bot_data["message_batcher"]
         assert mock_update.message is not None
-        await message_batcher.flush(str(mock_update.message.chat.id))
+        assert mock_update.message.from_user is not None
+        await message_batcher.flush(
+            str(mock_update.message.chat.id),
+            mock_update.message.from_user.id,
+        )
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -321,7 +334,11 @@ async def test_handle_message_interrupt_shows_duplicates(
         # Process batch immediately instead of waiting for timeout
         message_batcher = mock_context.bot_data["message_batcher"]
         assert mock_update.message is not None
-        await message_batcher.flush(str(mock_update.message.chat.id))
+        assert mock_update.message.from_user is not None
+        await message_batcher.flush(
+            str(mock_update.message.chat.id),
+            mock_update.message.from_user.id,
+        )
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -379,7 +396,11 @@ async def test_handle_message_interrupt_no_duplicates(
         # Process batch immediately instead of waiting for timeout
         message_batcher = mock_context.bot_data["message_batcher"]
         assert mock_update.message is not None
-        await message_batcher.flush(str(mock_update.message.chat.id))
+        assert mock_update.message.from_user is not None
+        await message_batcher.flush(
+            str(mock_update.message.chat.id),
+            mock_update.message.from_user.id,
+        )
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -489,4 +510,7 @@ async def test_commands_bypass_batching(mock_update: Update, mock_context: Magic
     await handle_message(mock_update, mock_context)
 
     # Verify message was not added to batcher
-    assert str(mock_update.message.chat.id) not in message_batcher.buffers
+    assert mock_update.message is not None
+    assert mock_update.message.from_user is not None
+    key = (str(mock_update.message.chat.id), mock_update.message.from_user.id)
+    assert key not in message_batcher.buffers

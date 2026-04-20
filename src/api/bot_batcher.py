@@ -49,13 +49,14 @@ class MessageBatcher:
         """
         self.timeout = timeout
         self.process_callback = process_callback
-        self.buffers: dict[str, list[PendingMessage]] = {}
-        self.timers: dict[str, asyncio.Task[None]] = {}
-        self.locks: dict[str, asyncio.Lock] = {}
+        self.buffers: dict[tuple[str, int], list[PendingMessage]] = {}
+        self.timers: dict[tuple[str, int], asyncio.Task[None]] = {}
+        self.locks: dict[tuple[str, int], asyncio.Lock] = {}
 
     async def add_message(
         self,
         chat_id: str,
+        user_id: int,
         text: str,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE,
@@ -70,74 +71,74 @@ class MessageBatcher:
         """
         # Skip empty messages
         if not text or not text.strip():
-            logger.debug("Skipping empty message for chat %s", chat_id)
+            logger.debug("Skipping empty message for chat %s (user %d)", chat_id, user_id)
             return
 
-        # Create lock for this chat if it doesn't exist
-        if chat_id not in self.locks:
-            self.locks[chat_id] = asyncio.Lock()
+        key = (chat_id, user_id)
 
-        async with self.locks[chat_id]:
+        # Create lock for this key if it doesn't exist
+        if key not in self.locks:
+            self.locks[key] = asyncio.Lock()
+
+        async with self.locks[key]:
             # Initialize buffer if needed
-            if chat_id not in self.buffers:
-                self.buffers[chat_id] = []
+            if key not in self.buffers:
+                self.buffers[key] = []
 
             # Add message to buffer
-            self.buffers[chat_id].append(PendingMessage(text=text, update=update, context=context))
+            self.buffers[key].append(PendingMessage(text=text, update=update, context=context))
 
             # Cancel existing timer if any
-            if chat_id in self.timers:
-                self.timers[chat_id].cancel()
+            if key in self.timers:
+                self.timers[key].cancel()
 
             # Start new timer
-            self.timers[chat_id] = asyncio.create_task(self._timer_callback(chat_id))
+            self.timers[key] = asyncio.create_task(self._timer_callback(key))
 
-    async def _timer_callback(self, chat_id: str) -> None:
+    async def _timer_callback(self, key: tuple[str, int]) -> None:
         """Wait for timeout then process batch.
 
         Args:
-            chat_id: Chat identifier for the batch to process.
+            key: Composite key (chat_id, user_id) for the batch to process.
         """
         await asyncio.sleep(self.timeout)
-        await self._process_batch(chat_id)
+        await self._process_batch(key)
 
-    async def _process_batch(self, chat_id: str) -> None:
-        """Process all buffered messages for a chat.
+    async def _process_batch(self, key: tuple[str, int]) -> None:
+        """Process all buffered messages for a specific user in a chat.
 
         Args:
-            chat_id: Chat identifier for the batch to process.
+            key: Composite key (chat_id, user_id) for the batch to process.
         """
-        if chat_id not in self.locks:
-            logger.warning("No lock found for chat %s during batch processing", chat_id)
+        if key not in self.locks:
+            logger.warning("No lock found for key %s during batch processing", key)
             return
 
-        async with self.locks[chat_id]:
+        chat_id, user_id = key
+
+        async with self.locks[key]:
             # Get buffered messages
-            messages = self.buffers.get(chat_id, [])
+            messages = self.buffers.get(key, [])
             if not messages:
-                logger.debug("No messages to process for chat %s", chat_id)
+                logger.debug("No messages to process for chat %s (user %d)", chat_id, user_id)
                 return
 
             # Clear buffer and timer
-            self.buffers.pop(chat_id, None)
-            self.timers.pop(chat_id, None)
+            self.buffers.pop(key, None)
+            self.timers.pop(key, None)
 
             # Combine message texts
             combined_text = "\n\n".join(msg.text for msg in messages)
 
             # Use first message's update and context
             first_message = messages[0]
-            message = first_message.update.message
-            if message is None or message.from_user is None:
-                logger.warning("Cannot determine user_id for chat %s, skipping batch", chat_id)
-                return
-            user_id = message.from_user.id
             update = first_message.update
             context = first_message.context
 
         logger.info(
-            "Processing batch for chat %s: %d messages, %d chars",
+            "Processing batch for chat %s (user %d): %d messages, %d chars",
             chat_id,
+            user_id,
             len(messages),
             len(combined_text),
         )
@@ -152,12 +153,13 @@ class MessageBatcher:
                 context=context,
             )
 
-    async def flush(self, chat_id: str) -> None:
+    async def flush(self, chat_id: str, user_id: int) -> None:
         """Process buffered messages immediately and cancel timer."""
-        timer = self.timers.pop(chat_id, None)
+        key = (chat_id, user_id)
+        timer = self.timers.pop(key, None)
         if timer is not None:
             timer.cancel()
-        await self._process_batch(chat_id)
+        await self._process_batch(key)
 
     async def shutdown(self) -> None:
         """Cancel all timers and clear buffers on bot shutdown."""

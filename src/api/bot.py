@@ -87,6 +87,7 @@ async def handle_message(
     message_batcher = context.bot_data["message_batcher"]
     await message_batcher.add_message(
         chat_id=chat_id,
+        user_id=update.message.from_user.id,
         text=user_input,
         update=update,
         context=context,
