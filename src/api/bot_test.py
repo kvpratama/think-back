@@ -9,6 +9,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from telegram import Update, User
 
+from src.api.bot_batcher import MessageBatcher
+
+
+@pytest.fixture(autouse=True)
+async def reset_message_batcher(mock_context: MagicMock) -> AsyncGenerator[None, None]:
+    """Reset the message_batcher in mock_context before and after each test."""
+    batcher = mock_context.bot_data["message_batcher"]
+
+    await batcher.shutdown()
+    yield
+    await batcher.shutdown()
+
 
 @pytest.fixture
 def mock_user() -> MagicMock:
@@ -40,7 +52,11 @@ def mock_context() -> MagicMock:
     """Create a mock Telegram Context."""
     context = MagicMock()
     context.bot = AsyncMock()
-    context.bot_data = {}
+    # Initialize a real batcher for tests that need it
+    from src.api.bot import process_batch
+
+    batcher = MessageBatcher(timeout=1.0, process_callback=process_batch)
+    context.bot_data = {"message_batcher": batcher}
     return context
 
 
@@ -49,9 +65,10 @@ async def test_handle_message_natural_language(
     mock_context: MagicMock,
 ) -> None:
     """Test that handle_message processes natural language input through batching."""
-    import asyncio
 
     from src.api.bot import handle_message
+
+    message_batcher = mock_context.bot_data["message_batcher"]
 
     async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
         yield {
@@ -75,8 +92,10 @@ async def test_handle_message_natural_language(
     ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
 
-        # Wait for batch processing (timeout is 1.0s)
-        await asyncio.sleep(1.2)
+        # Process batch immediately instead of waiting for timeout
+        assert mock_update.message is not None
+        message_batcher = mock_context.bot_data["message_batcher"]
+        await message_batcher.flush(str(mock_update.message.chat.id))
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -91,56 +110,54 @@ async def test_handle_message_natural_language(
 
 async def test_split_messages_combined(mock_context: MagicMock) -> None:
     """Test that rapid successive messages are combined before processing."""
-    import asyncio
 
-    from src.api.bot import handle_message, message_batcher
+    from src.api.bot import handle_message
 
-    await message_batcher.shutdown()
-    try:
-        update1 = MagicMock(spec=Update)
-        update1.message = MagicMock()
-        update1.message.text = "First part of long message"
-        update1.message.chat.id = 123
-        update1.message.from_user = MagicMock(spec=User)
-        update1.message.from_user.id = 1
-        update1.message.reply_text = AsyncMock(return_value=MagicMock(message_id=1))
+    message_batcher = mock_context.bot_data["message_batcher"]
 
-        update2 = MagicMock(spec=Update)
-        update2.message = MagicMock()
-        update2.message.text = "Second part of long message"
-        update2.message.chat.id = 123
-        update2.message.from_user = MagicMock(spec=User)
-        update2.message.from_user.id = 1
-        update2.message.reply_text = AsyncMock(return_value=MagicMock(message_id=2))
+    update1 = MagicMock(spec=Update)
+    update1.message = MagicMock()
+    update1.message.text = "First part of long message"
+    update1.message.chat.id = 123
+    update1.message.from_user = MagicMock(spec=User)
+    update1.message.from_user.id = 1
+    update1.message.reply_text = AsyncMock(return_value=MagicMock(message_id=1))
 
-        async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
-            yield {
-                "event": "on_chain_end",
-                "name": "LangGraph",
-                "data": {"output": {"messages": [MagicMock(content="Combined response")]}},
-            }
+    update2 = MagicMock(spec=Update)
+    update2.message = MagicMock()
+    update2.message.text = "Second part of long message"
+    update2.message.chat.id = 123
+    update2.message.from_user = MagicMock(spec=User)
+    update2.message.from_user.id = 1
+    update2.message.reply_text = AsyncMock(return_value=MagicMock(message_id=2))
 
-        mock_state = MagicMock()
-        mock_state.next = []
-        mock_state.values = {"messages": [MagicMock(content="Combined response")]}
+    async def mock_astream(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+        yield {
+            "event": "on_chain_end",
+            "name": "LangGraph",
+            "data": {"output": {"messages": [MagicMock(content="Combined response")]}},
+        }
 
-        mock_graph = MagicMock()
-        mock_graph.astream_events = MagicMock(side_effect=mock_astream)
-        mock_graph.aget_state = AsyncMock(return_value=mock_state)
-        mock_context.bot_data["graph"] = mock_graph
+    mock_state = MagicMock()
+    mock_state.next = []
+    mock_state.values = {"messages": [MagicMock(content="Combined response")]}
 
-        with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
-            await handle_message(update1, mock_context)
-            await handle_message(update2, mock_context)
+    mock_graph = MagicMock()
+    mock_graph.astream_events = MagicMock(side_effect=mock_astream)
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+    mock_context.bot_data["graph"] = mock_graph
 
-            # Wait for batching timeout (1.0s) and processing.
-            await asyncio.sleep(1.2)
+    with patch("src.api.bot.get_user_settings_id", return_value="settings-1"):
+        await handle_message(update1, mock_context)
+        await handle_message(update2, mock_context)
 
-        mock_graph.astream_events.assert_called_once()
-        messages = mock_graph.astream_events.call_args.args[0]["messages"]
-        assert messages[0]["content"] == "First part of long message\n\nSecond part of long message"
-    finally:
-        await message_batcher.shutdown()
+        # Process batch immediately instead of waiting for timeout
+        message_batcher = mock_context.bot_data["message_batcher"]
+        await message_batcher.flush(str(update1.message.chat.id))
+
+    mock_graph.astream_events.assert_called_once()
+    messages = mock_graph.astream_events.call_args.args[0]["messages"]
+    assert messages[0]["content"] == "First part of long message\n\nSecond part of long message"
 
 
 async def test_create_application_sets_post_init() -> None:
@@ -208,7 +225,6 @@ async def test_handle_message_interrupt_not_overwritten(
     mock_context: MagicMock,
 ) -> None:
     """Test that the finally block does not overwrite the save-confirmation UI."""
-    import asyncio
 
     from src.api.bot import handle_message
 
@@ -239,8 +255,10 @@ async def test_handle_message_interrupt_not_overwritten(
     ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
 
-        # Wait for batch processing
-        await asyncio.sleep(1.2)
+        # Process batch immediately instead of waiting for timeout
+        message_batcher = mock_context.bot_data["message_batcher"]
+        assert mock_update.message is not None
+        await message_batcher.flush(str(mock_update.message.chat.id))
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -259,7 +277,6 @@ async def test_handle_message_interrupt_shows_duplicates(
     mock_context: MagicMock,
 ) -> None:
     """Test that the save confirmation UI surfaces duplicate memories."""
-    import asyncio
 
     from src.api.bot import handle_message
 
@@ -301,8 +318,10 @@ async def test_handle_message_interrupt_shows_duplicates(
     ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
 
-        # Wait for batch processing
-        await asyncio.sleep(1.2)
+        # Process batch immediately instead of waiting for timeout
+        message_batcher = mock_context.bot_data["message_batcher"]
+        assert mock_update.message is not None
+        await message_batcher.flush(str(mock_update.message.chat.id))
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -323,7 +342,6 @@ async def test_handle_message_interrupt_no_duplicates(
     mock_context: MagicMock,
 ) -> None:
     """Test that the save confirmation UI works when no duplicates are found."""
-    import asyncio
 
     from src.api.bot import handle_message
 
@@ -358,8 +376,10 @@ async def test_handle_message_interrupt_no_duplicates(
     ) as mock_get_user_settings_id:
         await handle_message(mock_update, mock_context)
 
-        # Wait for batch processing
-        await asyncio.sleep(1.2)
+        # Process batch immediately instead of waiting for timeout
+        message_batcher = mock_context.bot_data["message_batcher"]
+        assert mock_update.message is not None
+        await message_batcher.flush(str(mock_update.message.chat.id))
 
     assert mock_update.message is not None
     mock_get_user_settings_id.assert_called_once_with(str(mock_update.message.chat.id))
@@ -453,11 +473,17 @@ async def test_unknown_command(mock_update: Update, mock_context: MagicMock) -> 
 
 async def test_commands_bypass_batching(mock_update: Update, mock_context: MagicMock) -> None:
     """Test that commands are not batched."""
-    from src.api.bot import handle_message, message_batcher
+    from src.api.bot import handle_message
 
-    # Set command text
+    message_batcher = mock_context.bot_data["message_batcher"]
+
+    # Clear batcher to ensure clean state
+    await message_batcher.shutdown()
+
+    # Set command text and unique chat ID to avoid shared state flakiness
     assert mock_update.message is not None
     mock_update.message.text = "/help"
+    mock_update.message.chat.id = 99999
 
     # Call handle_message
     await handle_message(mock_update, mock_context)

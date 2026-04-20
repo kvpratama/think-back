@@ -10,7 +10,7 @@ from src.api.bot_batcher import MessageBatcher
 
 
 @pytest.fixture
-def mock_update():
+def mock_update() -> MagicMock:
     """Create a mock Telegram Update."""
     update = MagicMock()
     update.message.text = "test message"
@@ -19,13 +19,12 @@ def mock_update():
 
 
 @pytest.fixture
-def mock_context():
+def mock_context() -> MagicMock:
     """Create a mock Telegram context."""
     return MagicMock()
 
 
-@pytest.mark.asyncio
-async def test_add_message_creates_buffer(mock_update, mock_context):
+async def test_add_message_creates_buffer(mock_update, mock_context) -> None:
     """Test that adding a message creates a buffer for the chat."""
     batcher = MessageBatcher(timeout=1.0)
 
@@ -41,8 +40,7 @@ async def test_add_message_creates_buffer(mock_update, mock_context):
     assert batcher.buffers["123"][0].text == "Hello"
 
 
-@pytest.mark.asyncio
-async def test_add_message_starts_timer(mock_update, mock_context):
+async def test_add_message_starts_timer(mock_update, mock_context) -> None:
     """Test that adding a message starts a timer."""
     batcher = MessageBatcher(timeout=1.0)
 
@@ -57,11 +55,8 @@ async def test_add_message_starts_timer(mock_update, mock_context):
     assert not batcher.timers["123"].done()
 
 
-@pytest.mark.asyncio
-async def test_process_batch_combines_messages(mock_update, mock_context):
+async def test_process_batch_combines_messages(mock_update, mock_context) -> None:
     """Test that batch processing combines multiple messages."""
-    import asyncio
-
     process_callback = AsyncMock()
     batcher = MessageBatcher(timeout=0.1, process_callback=process_callback)
 
@@ -70,8 +65,8 @@ async def test_process_batch_combines_messages(mock_update, mock_context):
     await batcher.add_message("123", "Second", mock_update, mock_context)
     await batcher.add_message("123", "Third", mock_update, mock_context)
 
-    # Wait for timer to expire
-    await asyncio.sleep(0.15)
+    # Wait for timer task to complete
+    await batcher.timers["123"]
 
     # Verify callback was called with combined text
     process_callback.assert_called_once()
@@ -82,8 +77,7 @@ async def test_process_batch_combines_messages(mock_update, mock_context):
     assert call_args["context"] == mock_context
 
 
-@pytest.mark.asyncio
-async def test_shutdown_cancels_timers(mock_update, mock_context):
+async def test_shutdown_cancels_timers(mock_update, mock_context) -> None:
     """Test that shutdown cancels all active timers."""
 
     process_callback = AsyncMock()
@@ -106,11 +100,8 @@ async def test_shutdown_cancels_timers(mock_update, mock_context):
     process_callback.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_timer_reset_on_new_message(mock_update, mock_context):
+async def test_timer_reset_on_new_message(mock_update, mock_context) -> None:
     """Test that new messages reset the timer."""
-    import asyncio
-
     process_callback = AsyncMock()
     batcher = MessageBatcher(timeout=0.1, process_callback=process_callback)
 
@@ -118,24 +109,18 @@ async def test_timer_reset_on_new_message(mock_update, mock_context):
     await batcher.add_message("123", "First", mock_update, mock_context)
     first_timer = batcher.timers["123"]
 
-    # Wait 0.05s (half the timeout)
-    await asyncio.sleep(0.05)
-
-    # Add second message (should reset timer)
+    # Add second message immediately (should reset timer)
     await batcher.add_message("123", "Second", mock_update, mock_context)
     second_timer = batcher.timers["123"]
 
     # Verify timer was replaced
     assert first_timer != second_timer
 
-    # Wait another 0.08s (total 0.13s from first, but only 0.08s from second)
-    await asyncio.sleep(0.08)
-
     # Callback should not have been called yet
     process_callback.assert_not_called()
 
     # Wait for second timer to complete
-    await asyncio.sleep(0.05)
+    await second_timer
 
     # Now callback should be called with both messages
     process_callback.assert_called_once()
@@ -143,8 +128,7 @@ async def test_timer_reset_on_new_message(mock_update, mock_context):
     assert call_args["combined_text"] == "First\n\nSecond"
 
 
-@pytest.mark.asyncio
-async def test_concurrent_chats_independent(mock_context):
+async def test_concurrent_chats_independent(mock_context) -> None:
     """Test that different chats have independent buffers and timers."""
     import asyncio
 
@@ -175,9 +159,11 @@ async def test_concurrent_chats_independent(mock_context):
     assert len(batcher.timers) == 2
     assert "123" in batcher.timers
     assert "456" in batcher.timers
+    timer_123 = batcher.timers["123"]
+    timer_456 = batcher.timers["456"]
 
     # Wait for both timers to complete
-    await asyncio.sleep(0.15)
+    await asyncio.gather(timer_123, timer_456)
 
     # Verify both batches processed independently
     assert process_callback.call_count == 2
@@ -187,8 +173,7 @@ async def test_concurrent_chats_independent(mock_context):
     assert call_chat_ids == {"123", "456"}
 
 
-@pytest.mark.asyncio
-async def test_empty_messages_filtered(mock_update, mock_context):
+async def test_empty_messages_filtered(mock_update, mock_context) -> None:
     """Test that empty messages are not added to buffer."""
     import asyncio
 

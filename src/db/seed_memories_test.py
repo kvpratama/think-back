@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
 from src.db.seed_memories import seed_memories
 
 
@@ -29,7 +27,6 @@ async def test_seed_memories_passes_user_settings_id() -> None:
             assert call.kwargs.get("user_settings_id") == "usr-123"
 
 
-@pytest.mark.asyncio
 async def test_imports_all_entries_from_json(tmp_path: Path) -> None:
     """Test that seed_memories imports all entries from JSON file."""
     test_data = [
@@ -55,7 +52,6 @@ async def test_imports_all_entries_from_json(tmp_path: Path) -> None:
         assert calls[2][0] == ("Third memory", "Third")
 
 
-@pytest.mark.asyncio
 async def test_adds_2_second_delay_between_calls(tmp_path: Path) -> None:
     """Test that seed_memories adds 2 second delay between save_memory calls."""
     test_data = [
@@ -78,7 +74,6 @@ async def test_adds_2_second_delay_between_calls(tmp_path: Path) -> None:
         mock_sleep.assert_called_with(2)
 
 
-@pytest.mark.asyncio
 async def test_retries_on_error_with_2_minute_wait(tmp_path: Path) -> None:
     """Test that seed_memories retries once after waiting 2 minutes on error."""
     test_data = [
@@ -109,7 +104,6 @@ async def test_retries_on_error_with_2_minute_wait(tmp_path: Path) -> None:
         assert 120 in sleep_calls
 
 
-@pytest.mark.asyncio
 async def test_tracks_failures_when_retry_also_fails(tmp_path: Path) -> None:
     """Test that seed_memories tracks failures when both attempts fail."""
     test_data = [

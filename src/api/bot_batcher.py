@@ -50,7 +50,7 @@ class MessageBatcher:
         self.timeout = timeout
         self.process_callback = process_callback
         self.buffers: dict[str, list[PendingMessage]] = {}
-        self.timers: dict[str, asyncio.Task] = {}
+        self.timers: dict[str, asyncio.Task[None]] = {}
         self.locks: dict[str, asyncio.Lock] = {}
 
     async def add_message(
@@ -87,10 +87,7 @@ class MessageBatcher:
 
             # Cancel existing timer if any
             if chat_id in self.timers:
-                try:
-                    self.timers[chat_id].cancel()
-                except (KeyError, asyncio.CancelledError):
-                    pass
+                self.timers[chat_id].cancel()
 
             # Start new timer
             self.timers[chat_id] = asyncio.create_task(self._timer_callback(chat_id))
@@ -153,16 +150,22 @@ class MessageBatcher:
                     context=first_message.context,
                 )
 
+    async def flush(self, chat_id: str) -> None:
+        """Process buffered messages immediately and cancel timer."""
+        timer = self.timers.pop(chat_id, None)
+        if timer is not None:
+            timer.cancel()
+        await self._process_batch(chat_id)
+
     async def shutdown(self) -> None:
         """Cancel all timers and clear buffers on bot shutdown."""
         logger.info("Shutting down MessageBatcher, cancelling %d timers", len(self.timers))
 
-        # Cancel all timers
-        for _chat_id, timer in list(self.timers.items()):
-            try:
-                timer.cancel()
-            except (KeyError, asyncio.CancelledError):
-                pass
+        # Cancel all timers and await them to avoid leaving tasks un-awaited.
+        timers = list(self.timers.values())
+        for timer in timers:
+            timer.cancel()
+        await asyncio.gather(*timers, return_exceptions=True)
 
         # Clear all state
         self.timers.clear()

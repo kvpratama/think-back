@@ -56,7 +56,11 @@ async def test_search_memories_tool_handles_no_results() -> None:
     """Test that search_memories_tool handles empty results."""
     from src.agent.tools import search_memories_tool
 
-    with patch("src.agent.tools.db_search_memories") as mock_search:
+    with (
+        patch("src.agent.tools.db_search_memories") as mock_search,
+        patch("src.agent.tools.get_settings") as mock_settings,
+    ):
+        mock_settings.return_value.search_top_k = 5
         mock_search.return_value = []
 
         tool_input: dict[str, Any] = {"query": "unknown topic"}

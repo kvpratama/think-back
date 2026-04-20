@@ -42,10 +42,6 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-# Global message batcher instance
-# Will set callback after defining process_batch
-message_batcher = MessageBatcher(timeout=1.0, process_callback=None)
-
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle unknown commands.
@@ -88,6 +84,7 @@ async def handle_message(
         return
 
     # Add message to batcher
+    message_batcher = context.bot_data["message_batcher"]
     await message_batcher.add_message(
         chat_id=chat_id,
         text=user_input,
@@ -264,10 +261,6 @@ async def process_batch(
                 )
 
 
-# Set the callback after process_batch is defined
-message_batcher.process_callback = process_batch
-
-
 async def _post_init(application: Application) -> None:
     """Set bot commands after the application initializes.
 
@@ -290,6 +283,7 @@ async def _post_shutdown(application: Application) -> None:
     Args:
         application: The Telegram Application instance.
     """
+    message_batcher = application.bot_data["message_batcher"]
     await message_batcher.shutdown()
 
 
@@ -307,6 +301,11 @@ def create_application() -> Application:
         .post_init(_post_init)
         .post_shutdown(_post_shutdown)
         .build()
+    )
+
+    # Initialize and store message batcher
+    application.bot_data["message_batcher"] = MessageBatcher(
+        timeout=1.0, process_callback=process_batch
     )
 
     application.add_handler(CommandHandler("start", start_command))
