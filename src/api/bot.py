@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import time
 
 from dotenv import load_dotenv
 from langchain_core.runnables import RunnableConfig
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update, constants
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
@@ -128,7 +129,10 @@ async def process_batch(
     if not update.message:
         return
 
-    sent_message = await update.message.reply_text("Thinking... 🧠")
+    await context.bot.send_chat_action(
+        chat_id=int(chat_id),
+        action=constants.ChatAction.TYPING,
+    )
 
     graph = get_graph(context)
     thread_id = f"{chat_id}_{user_id}"
@@ -140,40 +144,54 @@ async def process_batch(
     final_response = ""
     handled_interrupt = False
     last_update_time = time.monotonic()
-    update_interval = 1.0
+    update_interval = 0.3
     telegram_char_limit = 4000
+    draft_id = random.randint(1, 2**31)
 
     try:
-        async for event in graph.astream_events(
+        async for chunk in graph.astream(
             {"messages": [{"role": "user", "content": combined_text}]},
             config=config,
-            version="v2",
+            stream_mode="messages",
         ):
-            if event["event"] == "on_chat_model_stream":
-                content = event["data"]["chunk"].content
-                if content:
-                    accumulated_response += content if isinstance(content, str) else str(content)
+            msg, metadata = chunk
 
-                    current_time = time.monotonic()
-                    if (
-                        current_time - last_update_time > update_interval
-                        and accumulated_response.strip()
-                    ):
-                        display_text = truncate_for_telegram(
-                            accumulated_response + " ▌",
-                            max_len=telegram_char_limit,
+            # Send typing indicator for tool call
+            # if not isinstance(msg, str) and msg.type == "tool":
+            #     try:
+            #         await context.bot.send_chat_action(
+            #             chat_id=int(chat_id),
+            #             action="typing",
+            #         )
+            #     except TelegramError:
+            #         pass
+            #     continue
+
+            # Only stream AI messages
+            if not isinstance(msg, str) and msg.type == "ai" and msg.content:
+                content = msg.content
+                accumulated_response += content if isinstance(content, str) else str(content)
+
+                current_time = time.monotonic()
+                if (
+                    current_time - last_update_time > update_interval
+                    and accumulated_response.strip()
+                ):
+                    display_text = truncate_for_telegram(
+                        accumulated_response,
+                        max_len=telegram_char_limit,
+                    )
+                    try:
+                        await context.bot.send_message_draft(
+                            chat_id=int(chat_id),
+                            draft_id=draft_id,
+                            text=display_text,
                         )
-                        try:
-                            await context.bot.edit_message_text(
-                                chat_id=int(chat_id),
-                                message_id=sent_message.message_id,
-                                text=display_text,
-                            )
-                            last_update_time = current_time
-                        except BadRequest:
-                            pass
-                        except TelegramError:
-                            pass
+                        last_update_time = current_time
+                    except BadRequest:
+                        pass
+                    except TelegramError:
+                        pass
 
         # Check for interrupt (save confirmation)
         state = await graph.aget_state(config)
@@ -215,20 +233,11 @@ async def process_batch(
                 "\n".join(confirm_parts),
                 max_len=telegram_char_limit,
             )
-            try:
-                await context.bot.edit_message_text(
-                    chat_id=int(chat_id),
-                    message_id=sent_message.message_id,
-                    text=confirm_text,
-                    reply_markup=keyboard,
-                    parse_mode=ParseMode.HTML,
-                )
-            except TelegramError:
-                await update.message.reply_text(
-                    confirm_text,
-                    reply_markup=keyboard,
-                    parse_mode=ParseMode.HTML,
-                )
+            await update.message.reply_text(
+                confirm_text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.HTML,
+            )
             handled_interrupt = True
             return
 
@@ -248,18 +257,10 @@ async def process_batch(
                 final_response,
                 max_len=telegram_char_limit,
             )
-            try:
-                await context.bot.edit_message_text(
-                    chat_id=int(chat_id),
-                    message_id=sent_message.message_id,
-                    text=safe_response,
-                    parse_mode=ParseMode.HTML,
-                )
-            except TelegramError:
-                await update.message.reply_text(
-                    safe_response,
-                    parse_mode=ParseMode.HTML,
-                )
+            await update.message.reply_text(
+                safe_response,
+                parse_mode=ParseMode.HTML,
+            )
 
 
 async def _post_init(application: Application) -> None:
