@@ -24,6 +24,7 @@ from telegram.ext import (
     filters,
 )
 
+from src.api.bot_batcher import MessageBatcher
 from src.api.bot_callbacks import handle_callback
 from src.api.bot_commands import (
     chat_member_update,
@@ -60,7 +61,7 @@ async def handle_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Handle incoming messages and route to the agent graph.
+    """Handle incoming messages and route to the message batcher.
 
     Args:
         update: The Telegram update.
@@ -71,27 +72,66 @@ async def handle_message(
         return
 
     user_input = update.message.text
-    chat = update.message.chat
-    user_id = update.message.from_user.id
-    chat_id = str(chat.id)
+    chat_id = str(update.message.chat.id)
 
+    # Commands bypass batching for immediate response
+    if user_input and user_input.startswith("/"):
+        logger.debug("Command detected, bypassing batching: %s", user_input)
+        return
+
+    # Skip if no text
+    if not user_input:
+        return
+
+    # Add message to batcher
+    message_batcher = context.bot_data["message_batcher"]
+    await message_batcher.add_message(
+        chat_id=chat_id,
+        user_id=update.message.from_user.id,
+        text=user_input,
+        update=update,
+        context=context,
+    )
+
+
+async def process_batch(
+    chat_id: str,
+    user_id: int,
+    combined_text: str,
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Process a batch of combined messages through the agent graph.
+
+    Args:
+        chat_id: Chat identifier.
+        user_id: User identifier.
+        combined_text: Combined text from all batched messages.
+        update: Telegram update from first message in batch.
+        context: Telegram context.
+    """
     # Resolve user_settings_id for multi-tenancy
     try:
         user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
     except Exception:
         logger.exception("Failed to resolve user settings")
-        await update.message.reply_text(
-            "Sorry, I couldn't load your account settings. Please try again."
-        )
+        if update.message:
+            await update.message.reply_text(
+                "Sorry, I couldn't load your account settings. Please try again."
+            )
         return
     if not user_settings_id:
-        await update.message.reply_text("Please run /start first to set up your account.")
+        if update.message:
+            await update.message.reply_text("Please run /start first to set up your account.")
+        return
+
+    if not update.message:
         return
 
     sent_message = await update.message.reply_text("Thinking... 🧠")
 
     graph = get_graph(context)
-    thread_id = f"{chat.id}_{user_id}"
+    thread_id = f"{chat_id}_{user_id}"
     config = RunnableConfig(
         {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
     )
@@ -105,7 +145,7 @@ async def handle_message(
 
     try:
         async for event in graph.astream_events(
-            {"messages": [{"role": "user", "content": user_input}]},
+            {"messages": [{"role": "user", "content": combined_text}]},
             config=config,
             version="v2",
         ):
@@ -125,7 +165,7 @@ async def handle_message(
                         )
                         try:
                             await context.bot.edit_message_text(
-                                chat_id=chat.id,
+                                chat_id=int(chat_id),
                                 message_id=sent_message.message_id,
                                 text=display_text,
                             )
@@ -177,7 +217,7 @@ async def handle_message(
             )
             try:
                 await context.bot.edit_message_text(
-                    chat_id=chat.id,
+                    chat_id=int(chat_id),
                     message_id=sent_message.message_id,
                     text=confirm_text,
                     reply_markup=keyboard,
@@ -199,7 +239,7 @@ async def handle_message(
             final_response = messages[-1].content if hasattr(messages[-1], "content") else ""
 
     except Exception:
-        logger.exception("Error processing message in chat %s", chat.id)
+        logger.exception("Error processing message in chat %s", chat_id)
         final_response = accumulated_response or "Sorry, something went wrong. Please try again."
     finally:
         if not handled_interrupt and (final_response or accumulated_response):
@@ -210,7 +250,7 @@ async def handle_message(
             )
             try:
                 await context.bot.edit_message_text(
-                    chat_id=chat.id,
+                    chat_id=int(chat_id),
                     message_id=sent_message.message_id,
                     text=safe_response,
                     parse_mode=ParseMode.HTML,
@@ -238,6 +278,16 @@ async def _post_init(application: Application) -> None:
     )
 
 
+async def _post_shutdown(application: Application) -> None:
+    """Clean up resources after the application shuts down.
+
+    Args:
+        application: The Telegram Application instance.
+    """
+    message_batcher = application.bot_data["message_batcher"]
+    await message_batcher.shutdown()
+
+
 def create_application() -> Application:
     """Create and configure the Telegram bot application.
 
@@ -250,7 +300,13 @@ def create_application() -> Application:
         Application.builder()
         .token(settings.telegram_bot_token.get_secret_value())
         .post_init(_post_init)
+        .post_shutdown(_post_shutdown)
         .build()
+    )
+
+    # Initialize and store message batcher
+    application.bot_data["message_batcher"] = MessageBatcher(
+        timeout=1.0, process_callback=process_batch
     )
 
     application.add_handler(CommandHandler("start", start_command))

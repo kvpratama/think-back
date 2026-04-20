@@ -9,7 +9,11 @@ async def test_search_memories_tool_returns_formatted_results() -> None:
     """Test that search_memories_tool returns formatted memory content."""
     from src.agent.tools import search_memories_tool
 
-    with patch("src.agent.tools.db_search_memories") as mock_search:
+    with (
+        patch("src.agent.tools.db_search_memories") as mock_search,
+        patch("src.agent.tools.get_settings") as mock_settings,
+    ):
+        mock_settings.return_value.search_top_k = 5
         mock_search.return_value = [
             {"content": "Consistency beats intensity", "similarity": 0.9},
             {"content": "Identity drives habits", "similarity": 0.8},
@@ -26,11 +30,37 @@ async def test_search_memories_tool_returns_formatted_results() -> None:
         mock_search.assert_called_once_with("habits", user_settings_id="usr-123", top_k=5)
 
 
+async def test_search_memories_tool_uses_configured_top_k() -> None:
+    """Test that search_memories_tool reads top_k from Settings."""
+    from src.agent.tools import search_memories_tool
+
+    with (
+        patch("src.agent.tools.db_search_memories") as mock_search,
+        patch("src.agent.tools.get_settings") as mock_settings,
+    ):
+        mock_settings.return_value.search_top_k = 10
+        mock_search.return_value = [
+            {"content": "Test memory", "similarity": 0.9},
+        ]
+
+        tool_input: dict[str, Any] = {"query": "test"}
+        await search_memories_tool.ainvoke(
+            tool_input,
+            config={"configurable": {"user_settings_id": "usr-123"}},
+        )
+
+        mock_search.assert_called_once_with("test", user_settings_id="usr-123", top_k=10)
+
+
 async def test_search_memories_tool_handles_no_results() -> None:
     """Test that search_memories_tool handles empty results."""
     from src.agent.tools import search_memories_tool
 
-    with patch("src.agent.tools.db_search_memories") as mock_search:
+    with (
+        patch("src.agent.tools.db_search_memories") as mock_search,
+        patch("src.agent.tools.get_settings") as mock_settings,
+    ):
+        mock_settings.return_value.search_top_k = 5
         mock_search.return_value = []
 
         tool_input: dict[str, Any] = {"query": "unknown topic"}

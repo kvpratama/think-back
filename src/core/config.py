@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # COUPLING CONSTRAINT: This value must match the output dimensions of the
@@ -28,6 +28,7 @@ class Settings(BaseSettings):
         llm_provider: LLM provider name (e.g., 'openai').
         llm_provider_base_url: Base URL for the LLM provider API.
         embedding_model: Embedding model name for vector generation.
+        search_top_k: Number of top results to return from search.
         webhook_url: Public HTTPS URL to enable webhook mode (empty for polling).
         webhook_secret: Secret token for Telegram webhook request verification.
         port: Port for the webhook server.
@@ -57,6 +58,7 @@ class Settings(BaseSettings):
     llm_provider: str = "openai"
     llm_provider_base_url: str = "https://api.openai.com/v1"
     embedding_model: str = "gemini-embedding-001"
+    search_top_k: int = Field(default=3, ge=1, le=100)
 
     # Webhook (set WEBHOOK_URL to enable webhook mode; leave empty for polling)
     webhook_url: str = ""
