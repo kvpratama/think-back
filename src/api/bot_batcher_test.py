@@ -173,6 +173,47 @@ async def test_concurrent_chats_independent(mock_context) -> None:
     assert call_chat_ids == {"123", "456"}
 
 
+async def test_add_message_not_blocked_during_callback(mock_context) -> None:
+    """Test that add_message is not blocked while process_callback is running."""
+    import asyncio
+
+    callback_entered = asyncio.Event()
+    callback_release = asyncio.Event()
+
+    async def slow_callback(**kwargs: object) -> None:
+        """Simulate a long-running callback."""
+        callback_entered.set()
+        await callback_release.wait()
+
+    batcher = MessageBatcher(timeout=0.05, process_callback=slow_callback)
+
+    update = MagicMock()
+    update.message.text = "msg"
+    update.message.chat.id = 123
+    update.message.from_user.id = 1
+
+    # Add a message and let the timer fire
+    await batcher.add_message("123", "First", update, mock_context)
+    timer = batcher.timers["123"]
+
+    # Wait for the callback to start executing
+    await callback_entered.wait()
+
+    # add_message should NOT be blocked while callback runs
+    add_task = asyncio.create_task(batcher.add_message("123", "Second", update, mock_context))
+    try:
+        await asyncio.wait_for(add_task, timeout=0.5)
+    except TimeoutError:
+        pytest.fail("add_message was blocked by the running process_callback")
+
+    # Release the callback and let it finish
+    callback_release.set()
+    await timer
+
+    assert "123" in batcher.buffers
+    assert batcher.buffers["123"][0].text == "Second"
+
+
 async def test_empty_messages_filtered(mock_update, mock_context) -> None:
     """Test that empty messages are not added to buffer."""
     import asyncio

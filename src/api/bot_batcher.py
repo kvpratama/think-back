@@ -132,23 +132,25 @@ class MessageBatcher:
                 logger.warning("Cannot determine user_id for chat %s, skipping batch", chat_id)
                 return
             user_id = message.from_user.id
+            update = first_message.update
+            context = first_message.context
 
-            logger.info(
-                "Processing batch for chat %s: %d messages, %d chars",
-                chat_id,
-                len(messages),
-                len(combined_text),
+        logger.info(
+            "Processing batch for chat %s: %d messages, %d chars",
+            chat_id,
+            len(messages),
+            len(combined_text),
+        )
+
+        # Call the processing callback outside the lock
+        if self.process_callback:
+            await self.process_callback(
+                chat_id=chat_id,
+                user_id=user_id,
+                combined_text=combined_text,
+                update=update,
+                context=context,
             )
-
-            # Call the processing callback if provided
-            if self.process_callback:
-                await self.process_callback(
-                    chat_id=chat_id,
-                    user_id=user_id,
-                    combined_text=combined_text,
-                    update=first_message.update,
-                    context=first_message.context,
-                )
 
     async def flush(self, chat_id: str) -> None:
         """Process buffered messages immediately and cancel timer."""
