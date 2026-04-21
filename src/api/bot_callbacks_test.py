@@ -441,7 +441,9 @@ async def test_handle_callback_lazy_initializes_graph(
 
     with (
         patch("src.api.bot_callbacks.get_user_settings_id", return_value="settings-1"),
-        patch("src.api.bot_callbacks.aget_graph", return_value=mock_graph) as mock_aget_graph,
+        patch(
+            "src.api.bot_callbacks.aget_graph", new_callable=AsyncMock, return_value=mock_graph
+        ) as mock_aget_graph,
     ):
         await handle_callback(mock_callback_update, mock_context)
 

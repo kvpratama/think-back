@@ -57,7 +57,8 @@ async def aget_checkpointer() -> AsyncPostgresSaver:
 async def aclose_checkpointer() -> None:
     """Close the underlying connection pool if it exists."""
     global _checkpointer_instance
-    if _checkpointer_instance is not None:
-        if isinstance(_checkpointer_instance.conn, AsyncConnectionPool):
-            await _checkpointer_instance.conn.close()
+    async with _checkpointer_lock:
+        instance = _checkpointer_instance
         _checkpointer_instance = None
+    if instance is not None and isinstance(instance.conn, AsyncConnectionPool):
+        await instance.conn.close()

@@ -411,18 +411,19 @@ class TestRecordReminderInThread:
         assert isinstance(values["messages"][0], AIMessage)
         assert "Some content" in values["messages"][0].content
 
-    async def test_does_not_raise_on_failure(self) -> None:
+    async def test_does_not_raise_on_failure(self, caplog: pytest.LogCaptureFixture) -> None:
         mock_graph = MagicMock()
         mock_graph.aupdate_state = AsyncMock(side_effect=Exception("DB connection failed"))
 
         from src.jobs.remind import record_reminder_in_thread
 
-        # Should not raise — graceful degradation
+        caplog.set_level("ERROR")
         await record_reminder_in_thread(
             graph=mock_graph,
             chat_id="123456",
             text="Some text",
         )
+        assert any("Failed to record reminder" in record.message for record in caplog.records)
 
 
 class TestMain:

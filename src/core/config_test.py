@@ -202,9 +202,10 @@ def test_vector_dimensions_is_fixed_constant() -> None:
 
 
 def test_settings_database_url_is_required() -> None:
-    """Test that database_url is loaded from environment."""
+    """Test that database_url is required and loaded from environment."""
     from src.core.config import Settings
 
+    # Test successful load
     with patch.dict(
         os.environ,
         {**BASE_ENV, "DATABASE_URL": "postgresql://test:test@localhost:5432/testdb"},
@@ -216,3 +217,13 @@ def test_settings_database_url_is_required() -> None:
     assert (
         settings.database_url.get_secret_value() == "postgresql://test:test@localhost:5432/testdb"
     )
+
+    # Test missing DATABASE_URL raises ValidationError
+    with patch.dict(
+        os.environ,
+        {k: v for k, v in BASE_ENV.items() if k != "DATABASE_URL"},
+        clear=True,
+    ):
+        with patch.object(Settings, "model_config", _NO_DOTENV):
+            with pytest.raises(ValidationError):
+                Settings()  # type: ignore[call-arg]

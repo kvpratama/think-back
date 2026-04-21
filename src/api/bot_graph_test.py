@@ -1,6 +1,6 @@
 """Tests for bot_graph module."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -17,7 +17,11 @@ async def test_aget_graph_builds_and_caches() -> None:
     mock_graph = MagicMock()
 
     with (
-        patch("src.db.checkpointer.aget_checkpointer", return_value=mock_checkpointer) as mock_get,
+        patch(
+            "src.db.checkpointer.aget_checkpointer",
+            new_callable=AsyncMock,
+            return_value=mock_checkpointer,
+        ) as mock_get,
         patch("src.agent.graph.build_graph", return_value=mock_graph) as mock_build,
     ):
         result = await aget_graph(mock_context)
@@ -38,7 +42,7 @@ async def test_aget_graph_returns_cached() -> None:
     mock_context.bot_data = {"graph": mock_graph}
 
     with (
-        patch("src.db.checkpointer.aget_checkpointer") as mock_get,
+        patch("src.db.checkpointer.aget_checkpointer", new_callable=AsyncMock) as mock_get,
         patch("src.agent.graph.build_graph") as mock_build,
     ):
         result = await aget_graph(mock_context)

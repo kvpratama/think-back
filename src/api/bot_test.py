@@ -657,7 +657,7 @@ async def test_post_shutdown_closes_checkpointer() -> None:
     mock_batcher = AsyncMock()
     mock_app.bot_data = {"message_batcher": mock_batcher}
 
-    with patch("src.db.checkpointer.aclose_checkpointer") as mock_close:
+    with patch("src.db.checkpointer.aclose_checkpointer", new_callable=AsyncMock) as mock_close:
         assert app.post_shutdown is not None
         await app.post_shutdown(mock_app)
 
