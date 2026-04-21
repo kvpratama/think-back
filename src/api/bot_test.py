@@ -7,7 +7,8 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from telegram import Update, User
+from telegram import Chat, Update, User
+from telegram.constants import ChatType
 
 from src.api.bot_batcher import MessageBatcher
 
@@ -663,3 +664,118 @@ async def test_post_shutdown_closes_checkpointer() -> None:
 
     mock_batcher.shutdown.assert_awaited_once()
     mock_close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handlers_reject_group_chats() -> None:
+    """Verify that handlers with ChatType.PRIVATE filter reject group messages."""
+    from src.api.bot import create_application
+
+    app = create_application()
+
+    # Create a group chat update
+    user = MagicMock(spec=User)
+    user.id = 123
+    user.is_bot = False
+    user.first_name = "Test"
+
+    group_chat = MagicMock(spec=Chat)
+    group_chat.id = 456
+    group_chat.type = ChatType.GROUP
+
+    message = MagicMock()
+    message.message_id = 1
+    message.chat = group_chat
+    message.from_user = user
+    message.text = "/start"
+    message.reply_text = AsyncMock()
+
+    update = MagicMock(spec=Update)
+    update.update_id = 1
+    update.message = message
+    update.effective_message = message
+    update.effective_user = user
+    update.effective_chat = group_chat
+
+    # Mock DB calls to prevent errors
+    with (
+        patch("src.api.bot_commands.upsert_user_settings", return_value=False),
+        patch("src.api.bot_commands.get_user_settings_id", return_value="test-id"),
+    ):
+        # Process update through handlers
+        async with app:
+            await app.process_update(update)
+
+    # After adding ChatType.PRIVATE filter, handler should NOT be called
+    # Currently (without filter), it WILL be called
+    # This assertion will PASS after we add the filter
+    message.reply_text.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fallback_handler_for_non_private_chats() -> None:
+    """Verify fallback handler sends error message for non-private chats."""
+    from src.api.bot import non_private_chat_handler
+
+    # Create a group chat update
+    user = MagicMock()
+    user.id = 123
+
+    group_chat = MagicMock()
+    group_chat.id = 456
+    group_chat.type = ChatType.GROUP
+
+    message = MagicMock()
+    message.chat = group_chat
+    message.from_user = user
+    message.text = "Hello bot"
+    message.reply_text = AsyncMock()
+
+    update = MagicMock()
+    update.message = message
+
+    context = MagicMock()
+
+    # Call handler directly
+    await non_private_chat_handler(update, context)
+
+    # Verify fallback handler was called with correct message
+    message.reply_text.assert_called_once()
+    call_args = message.reply_text.call_args[0][0]
+    assert "private chats" in call_args.lower()
+    assert "/start" in call_args
+
+
+@pytest.mark.asyncio
+async def test_thread_id_uses_chat_id_only() -> None:
+    """Verify thread_id is constructed as str(chat_id) in private chats."""
+    from src.api.bot import process_batch
+
+    chat_id = "123456"
+    user_id = 123456
+    combined_text = "test message"
+
+    # Mock dependencies
+    mock_update = MagicMock()
+    mock_update.message.chat.id = int(chat_id)
+    mock_update.message.reply_text = AsyncMock()
+
+    mock_context = MagicMock()
+    mock_context.bot.send_chat_action = AsyncMock()
+
+    mock_graph = MagicMock()
+    mock_graph.astream = AsyncMock(return_value=iter([]))
+    mock_graph.aget_state = AsyncMock()
+    mock_graph.aget_state.return_value.next = []
+    mock_graph.aget_state.return_value.values = {"messages": [MagicMock(content="response")]}
+
+    with (
+        patch("src.api.bot.get_user_settings_id", return_value="user-settings-id"),
+        patch("src.api.bot.aget_graph", return_value=mock_graph),
+    ):
+        await process_batch(chat_id, user_id, combined_text, mock_update, mock_context)
+
+    # Verify graph was called with correct thread_id
+    mock_graph.astream.assert_called_once()
+    config = mock_graph.astream.call_args[1]["config"]
+    assert config["configurable"]["thread_id"] == chat_id

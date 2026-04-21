@@ -406,7 +406,7 @@ class TestRecordReminderInThread:
         config = call_args[0][0]
         values = call_args[0][1]
 
-        assert config["configurable"]["thread_id"] == "123456_123456"
+        assert config["configurable"]["thread_id"] == "123456"
         assert len(values["messages"]) == 1
         assert isinstance(values["messages"][0], AIMessage)
         assert "Some content" in values["messages"][0].content

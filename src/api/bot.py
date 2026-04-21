@@ -95,6 +95,25 @@ async def handle_message(
     )
 
 
+async def non_private_chat_handler(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Inform users that the bot only works in private chats.
+
+    Args:
+        update: The Telegram update.
+        context: The Telegram context.
+    """
+    if not update.message:
+        return
+
+    await update.message.reply_text(
+        "👋 ThinkBack only works in private chats.\n\n"
+        "Please message me directly to get started: /start"
+    )
+
+
 async def process_batch(
     chat_id: str,
     user_id: int,
@@ -135,7 +154,9 @@ async def process_batch(
     )
 
     graph = await aget_graph(context)
-    thread_id = f"{chat_id}_{user_id}"
+    # In private chats, chat_id equals user_id, so this uniquely identifies the user's thread.
+    # ThinkBack is restricted to private chats only (enforced via filters.ChatType.PRIVATE).
+    thread_id = str(chat_id)
     config = RunnableConfig(
         {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
     )
@@ -313,14 +334,25 @@ def create_application() -> Application:
         timeout=1.0, process_callback=process_batch
     )
 
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("timezone", timezone_command))
-    application.add_handler(CommandHandler("reminders", reminders_command))
-    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(
+        CommandHandler("start", start_command, filters=filters.ChatType.PRIVATE)
+    )
+    application.add_handler(
+        CommandHandler("timezone", timezone_command, filters=filters.ChatType.PRIVATE)
+    )
+    application.add_handler(
+        CommandHandler("reminders", reminders_command, filters=filters.ChatType.PRIVATE)
+    )
+    application.add_handler(CommandHandler("help", help_command, filters=filters.ChatType.PRIVATE))
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, handle_message)
+    )
     application.add_handler(CallbackQueryHandler(handle_callback))
     application.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
+
+    # Fallback handler for non-private chats (must be last)
+    application.add_handler(MessageHandler(~filters.ChatType.PRIVATE, non_private_chat_handler))
 
     return application
 

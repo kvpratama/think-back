@@ -325,7 +325,9 @@ async def record_reminder_in_thread(
     from langchain_core.messages import AIMessage
     from langchain_core.runnables import RunnableConfig
 
-    thread_id = f"{chat_id}_{chat_id}"
+    # In private chats, chat_id equals user_id, so this uniquely identifies the user's thread.
+    # ThinkBack is restricted to private chats only (enforced via filters.ChatType.PRIVATE).
+    thread_id = str(chat_id)
     config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
     try:
         await graph.aupdate_state(config, {"messages": [AIMessage(content=text)]})
