@@ -17,8 +17,10 @@ from src.db.client import get_supabase_client
 
 async def main() -> None:
     """Test full bot → agent → tools → DB flow for two users."""
+    from langgraph.checkpoint.memory import InMemorySaver
+
     client = get_supabase_client()
-    graph = build_graph()
+    graph = build_graph(checkpointer=InMemorySaver())
     failures = []
 
     print("=" * 60)

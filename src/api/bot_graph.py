@@ -19,12 +19,10 @@ def get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
         Compiled LangGraph instance.
     """
     if "graph" not in context.bot_data:
-        from langgraph.checkpoint.memory import InMemorySaver
-
         from src.agent.graph import build_graph
+        from src.db.checkpointer import get_checkpointer
 
-        context.bot_data["saver"] = InMemorySaver()
         context.bot_data["graph"] = build_graph(
-            checkpointer=context.bot_data["saver"],
+            checkpointer=get_checkpointer(),
         )
     return context.bot_data["graph"]
