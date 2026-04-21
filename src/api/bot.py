@@ -34,7 +34,7 @@ from src.api.bot_commands import (
     start_command,
     timezone_command,
 )
-from src.api.bot_graph import get_graph
+from src.api.bot_graph import aget_graph
 from src.api.bot_helpers import truncate_for_telegram
 from src.core.config import get_settings
 from src.db.user_settings import get_user_settings_id
@@ -134,7 +134,7 @@ async def process_batch(
         action=constants.ChatAction.TYPING,
     )
 
-    graph = get_graph(context)
+    graph = await aget_graph(context)
     thread_id = f"{chat_id}_{user_id}"
     config = RunnableConfig(
         {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
@@ -285,8 +285,11 @@ async def _post_shutdown(application: Application) -> None:
     Args:
         application: The Telegram Application instance.
     """
+    from src.db.checkpointer import aclose_checkpointer
+
     message_batcher = application.bot_data["message_batcher"]
     await message_batcher.shutdown()
+    await aclose_checkpointer()
 
 
 def create_application() -> Application:

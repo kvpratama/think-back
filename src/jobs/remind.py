@@ -294,16 +294,16 @@ def update_memory(memory_id: str, review_count: int) -> None:
     ).eq("id", memory_id).execute()
 
 
-def build_reminder_graph() -> CompiledStateGraph:
+async def abuild_reminder_graph() -> CompiledStateGraph:
     """Build a graph instance for recording reminders in conversation threads.
 
     Returns:
         Compiled agent graph with PostgresSaver checkpointer.
     """
     from src.agent.graph import build_graph
-    from src.db.checkpointer import get_checkpointer
+    from src.db.checkpointer import aget_checkpointer
 
-    return build_graph(checkpointer=get_checkpointer())
+    return build_graph(checkpointer=await aget_checkpointer())
 
 
 async def record_reminder_in_thread(
@@ -348,7 +348,7 @@ async def main() -> None:
         logger.info("No users due for a reminder at this hour.")
         return
 
-    graph = build_reminder_graph()
+    graph = await abuild_reminder_graph()
 
     for chat_id, user_settings_id in due_users:
         try:

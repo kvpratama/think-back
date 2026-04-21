@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from telegram.ext import ContextTypes
 
 
-def get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
+async def aget_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
     """Lazily build and cache the agent graph in bot_data.
 
     Args:
@@ -20,9 +20,9 @@ def get_graph(context: ContextTypes.DEFAULT_TYPE) -> CompiledStateGraph:
     """
     if "graph" not in context.bot_data:
         from src.agent.graph import build_graph
-        from src.db.checkpointer import get_checkpointer
+        from src.db.checkpointer import aget_checkpointer
 
         context.bot_data["graph"] = build_graph(
-            checkpointer=get_checkpointer(),
+            checkpointer=await aget_checkpointer(),
         )
     return context.bot_data["graph"]

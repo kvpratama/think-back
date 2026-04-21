@@ -1,11 +1,18 @@
 """Tests for the PostgresSaver checkpointer module."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
-def test_get_checkpointer_returns_postgres_saver() -> None:
-    """Test that get_checkpointer returns a PostgresSaver instance."""
-    from src.db.checkpointer import get_checkpointer
+@pytest.mark.asyncio
+async def test_get_checkpointer_returns_postgres_saver() -> None:
+    """Test that aget_checkpointer returns an AsyncPostgresSaver instance."""
+    import src.db.checkpointer as checkpointer_module
+    from src.db.checkpointer import aget_checkpointer
+
+    # Reset singleton state
+    checkpointer_module._checkpointer_instance = None
 
     mock_settings = MagicMock()
     mock_settings.database_url.get_secret_value.return_value = (
@@ -13,23 +20,29 @@ def test_get_checkpointer_returns_postgres_saver() -> None:
     )
 
     mock_pool = MagicMock()
+    mock_pool.open = AsyncMock()
     mock_saver = MagicMock()
+    mock_saver.setup = AsyncMock()
 
     with (
         patch("src.core.config.get_settings", return_value=mock_settings),
-        patch("src.db.checkpointer.ConnectionPool", return_value=mock_pool),
-        patch("src.db.checkpointer.PostgresSaver", return_value=mock_saver),
+        patch("src.db.checkpointer.AsyncConnectionPool", return_value=mock_pool),
+        patch("src.db.checkpointer.AsyncPostgresSaver", return_value=mock_saver),
     ):
-        get_checkpointer.cache_clear()
-        result = get_checkpointer()
+        result = await aget_checkpointer()
 
     assert result is mock_saver
-    mock_saver.setup.assert_called_once()
+    mock_saver.setup.assert_awaited_once()
 
 
-def test_get_checkpointer_is_singleton() -> None:
-    """Test that get_checkpointer returns the same instance on repeated calls."""
-    from src.db.checkpointer import get_checkpointer
+@pytest.mark.asyncio
+async def test_get_checkpointer_is_singleton() -> None:
+    """Test that aget_checkpointer returns the same instance on repeated calls."""
+    import src.db.checkpointer as checkpointer_module
+    from src.db.checkpointer import aget_checkpointer
+
+    # Reset singleton state
+    checkpointer_module._checkpointer_instance = None
 
     mock_settings = MagicMock()
     mock_settings.database_url.get_secret_value.return_value = (
@@ -37,15 +50,16 @@ def test_get_checkpointer_is_singleton() -> None:
     )
 
     mock_pool = MagicMock()
+    mock_pool.open = AsyncMock()
     mock_saver = MagicMock()
+    mock_saver.setup = AsyncMock()
 
     with (
         patch("src.core.config.get_settings", return_value=mock_settings),
-        patch("src.db.checkpointer.ConnectionPool", return_value=mock_pool),
-        patch("src.db.checkpointer.PostgresSaver", return_value=mock_saver),
+        patch("src.db.checkpointer.AsyncConnectionPool", return_value=mock_pool),
+        patch("src.db.checkpointer.AsyncPostgresSaver", return_value=mock_saver),
     ):
-        get_checkpointer.cache_clear()
-        first = get_checkpointer()
-        second = get_checkpointer()
+        first = await aget_checkpointer()
+        second = await aget_checkpointer()
 
     assert first is second

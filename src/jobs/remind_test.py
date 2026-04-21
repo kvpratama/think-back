@@ -462,7 +462,11 @@ class TestMain:
                 return_value="🧠 A thought to revisit\n\nA great quote",
             ) as mock_send,
             patch("src.jobs.remind.update_memory") as mock_update,
-            patch("src.jobs.remind.build_reminder_graph", return_value=mock_graph),
+            patch(
+                "src.jobs.remind.abuild_reminder_graph",
+                new_callable=AsyncMock,
+                return_value=mock_graph,
+            ),
             patch(
                 "src.jobs.remind.record_reminder_in_thread", new_callable=AsyncMock
             ) as mock_record,
