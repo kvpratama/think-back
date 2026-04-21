@@ -387,11 +387,11 @@ class TestUpdateMemory:
 class TestRecordReminderInThread:
     """Tests for record_reminder_in_thread()."""
 
-    async def test_calls_update_state_with_ai_message(self) -> None:
+    async def test_calls_aupdate_state_with_ai_message(self) -> None:
         from langchain_core.messages import AIMessage
 
         mock_graph = MagicMock()
-        mock_graph.update_state = MagicMock()
+        mock_graph.aupdate_state = AsyncMock()
 
         from src.jobs.remind import record_reminder_in_thread
 
@@ -401,8 +401,8 @@ class TestRecordReminderInThread:
             text="🧠 A thought to revisit\n\nSome content",
         )
 
-        mock_graph.update_state.assert_called_once()
-        call_args = mock_graph.update_state.call_args
+        mock_graph.aupdate_state.assert_called_once()
+        call_args = mock_graph.aupdate_state.call_args
         config = call_args[0][0]
         values = call_args[0][1]
 
@@ -413,7 +413,7 @@ class TestRecordReminderInThread:
 
     async def test_does_not_raise_on_failure(self) -> None:
         mock_graph = MagicMock()
-        mock_graph.update_state.side_effect = Exception("DB connection failed")
+        mock_graph.aupdate_state = AsyncMock(side_effect=Exception("DB connection failed"))
 
         from src.jobs.remind import record_reminder_in_thread
 
@@ -456,7 +456,11 @@ class TestMain:
                 new_callable=AsyncMock,
                 return_value=InsightResponse(insight="Insight.", question="Question?"),
             ) as mock_generate,
-            patch("src.jobs.remind.send_reminder", new_callable=AsyncMock) as mock_send,
+            patch(
+                "src.jobs.remind.send_reminder",
+                new_callable=AsyncMock,
+                return_value="🧠 A thought to revisit\n\nA great quote",
+            ) as mock_send,
             patch("src.jobs.remind.update_memory") as mock_update,
             patch("src.jobs.remind.build_reminder_graph", return_value=mock_graph),
             patch(

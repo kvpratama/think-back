@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 from telegram import Bot
 from telegram.constants import ParseMode
@@ -213,7 +214,7 @@ async def send_reminder(
     source: str | None,
     insight: str,
     question: str,
-) -> None:
+) -> str:
     """Send a formatted reminder message via Telegram.
 
     Formats the memory, insight, and question as an HTML message
@@ -225,6 +226,9 @@ async def send_reminder(
         source: Optional attribution (author, book, newsletter).
         insight: The AI-generated insight.
         question: The AI-generated reflective question.
+
+    Returns:
+        The formatted message text that was sent.
     """
     from src.api.bot_helpers import sanitize_for_telegram_html
     from src.core.config import get_settings
@@ -269,6 +273,8 @@ async def send_reminder(
         parse_mode=ParseMode.HTML,
     )
 
+    return text
+
 
 def update_memory(memory_id: str, review_count: int) -> None:
     """Update a memory's review metadata after surfacing.
@@ -288,7 +294,7 @@ def update_memory(memory_id: str, review_count: int) -> None:
     ).eq("id", memory_id).execute()
 
 
-def build_reminder_graph() -> Any:
+def build_reminder_graph() -> CompiledStateGraph:
     """Build a graph instance for recording reminders in conversation threads.
 
     Returns:
@@ -301,7 +307,7 @@ def build_reminder_graph() -> Any:
 
 
 async def record_reminder_in_thread(
-    graph: Any,
+    graph: CompiledStateGraph,
     chat_id: str,
     text: str,
 ) -> None:
@@ -317,11 +323,12 @@ async def record_reminder_in_thread(
         text: The reminder message text that was sent to the user.
     """
     from langchain_core.messages import AIMessage
+    from langchain_core.runnables import RunnableConfig
 
     thread_id = f"{chat_id}_{chat_id}"
-    config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
     try:
-        await asyncio.to_thread(graph.update_state, config, {"messages": [AIMessage(content=text)]})
+        await graph.aupdate_state(config, {"messages": [AIMessage(content=text)]})
     except Exception:
         logger.exception(
             "Failed to record reminder in thread %s",
@@ -367,21 +374,13 @@ async def main() -> None:
 
             insight_resp = await generate_insight(content=content, source=source)
 
-            await send_reminder(
+            reminder_text = await send_reminder(
                 chat_id=chat_id,
                 content=content,
                 source=source,
                 insight=insight_resp.insight,
                 question=insight_resp.question,
             )
-
-            # Build the same reminder text that was sent to Telegram
-            title = "🧠 Reminder sent"
-            parts = [title, "", f"<blockquote>{content}</blockquote>"]
-            if source:
-                parts.append(f"<i>— {source}</i>")
-            parts.extend(["", f"💡 {insight_resp.insight}", "", f"❓ {insight_resp.question}"])
-            reminder_text = "\n".join(parts)
 
             await record_reminder_in_thread(
                 graph=graph,
