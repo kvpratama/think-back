@@ -303,6 +303,7 @@ class TestSendReminder:
                 {
                     "SUPABASE_URL": "https://test.supabase.co",
                     "SUPABASE_KEY": "test-key",
+                    "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
                     "TELEGRAM_BOT_TOKEN": "test-token",
                     "OPENAI_API_KEY": "test-key",
                     "GEMINI_API_KEY": "test-key",
@@ -341,6 +342,7 @@ class TestSendReminder:
                 {
                     "SUPABASE_URL": "https://test.supabase.co",
                     "SUPABASE_KEY": "test-key",
+                    "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
                     "TELEGRAM_BOT_TOKEN": "test-token",
                     "OPENAI_API_KEY": "test-key",
                     "GEMINI_API_KEY": "test-key",
@@ -382,6 +384,47 @@ class TestUpdateMemory:
         assert "last_reviewed_at" in update_call
 
 
+class TestRecordReminderInThread:
+    """Tests for record_reminder_in_thread()."""
+
+    async def test_calls_update_state_with_ai_message(self) -> None:
+        from langchain_core.messages import AIMessage
+
+        mock_graph = MagicMock()
+        mock_graph.update_state = MagicMock()
+
+        from src.jobs.remind import record_reminder_in_thread
+
+        await record_reminder_in_thread(
+            graph=mock_graph,
+            chat_id="123456",
+            text="🧠 A thought to revisit\n\nSome content",
+        )
+
+        mock_graph.update_state.assert_called_once()
+        call_args = mock_graph.update_state.call_args
+        config = call_args[0][0]
+        values = call_args[0][1]
+
+        assert config["configurable"]["thread_id"] == "123456_123456"
+        assert len(values["messages"]) == 1
+        assert isinstance(values["messages"][0], AIMessage)
+        assert "Some content" in values["messages"][0].content
+
+    async def test_does_not_raise_on_failure(self) -> None:
+        mock_graph = MagicMock()
+        mock_graph.update_state.side_effect = Exception("DB connection failed")
+
+        from src.jobs.remind import record_reminder_in_thread
+
+        # Should not raise — graceful degradation
+        await record_reminder_in_thread(
+            graph=mock_graph,
+            chat_id="123456",
+            text="Some text",
+        )
+
+
 class TestMain:
     """Tests for main() orchestration."""
 
@@ -396,6 +439,8 @@ class TestMain:
             "last_reviewed_at": None,
             "review_count": 0,
         }
+
+        mock_graph = MagicMock()
 
         with (
             patch(
@@ -413,6 +458,10 @@ class TestMain:
             ) as mock_generate,
             patch("src.jobs.remind.send_reminder", new_callable=AsyncMock) as mock_send,
             patch("src.jobs.remind.update_memory") as mock_update,
+            patch("src.jobs.remind.build_reminder_graph", return_value=mock_graph),
+            patch(
+                "src.jobs.remind.record_reminder_in_thread", new_callable=AsyncMock
+            ) as mock_record,
         ):
             from src.jobs.remind import main
 
@@ -429,6 +478,11 @@ class TestMain:
             question="Question?",
         )
         mock_update.assert_called_once_with(memory_id="mem-1", review_count=0)
+        mock_record.assert_called_once()
+        record_kwargs = mock_record.call_args.kwargs
+        assert record_kwargs["graph"] is mock_graph
+        assert record_kwargs["chat_id"] == "chat-123"
+        assert "A great quote" in record_kwargs["text"]
 
     async def test_exits_early_when_no_due_users(self) -> None:
         with (

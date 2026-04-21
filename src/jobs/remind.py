@@ -288,16 +288,60 @@ def update_memory(memory_id: str, review_count: int) -> None:
     ).eq("id", memory_id).execute()
 
 
+def build_reminder_graph() -> Any:
+    """Build a graph instance for recording reminders in conversation threads.
+
+    Returns:
+        Compiled agent graph with PostgresSaver checkpointer.
+    """
+    from src.agent.graph import build_graph
+    from src.db.checkpointer import get_checkpointer
+
+    return build_graph(checkpointer=get_checkpointer())
+
+
+async def record_reminder_in_thread(
+    graph: Any,
+    chat_id: str,
+    text: str,
+) -> None:
+    """Record a sent reminder as an AIMessage in the user's conversation thread.
+
+    Uses graph.update_state to append the message without triggering agent logic.
+    Fails silently — the user still receives their Telegram message even if
+    recording to the checkpoint store fails.
+
+    Args:
+        graph: The compiled agent graph with a persistent checkpointer.
+        chat_id: The Telegram chat ID (equals user ID for private chats).
+        text: The reminder message text that was sent to the user.
+    """
+    from langchain_core.messages import AIMessage
+
+    thread_id = f"{chat_id}_{chat_id}"
+    config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+    try:
+        await asyncio.to_thread(graph.update_state, config, {"messages": [AIMessage(content=text)]})
+    except Exception:
+        logger.exception(
+            "Failed to record reminder in thread %s",
+            thread_id,
+        )
+
+
 async def main() -> None:
     """Run the spaced repetition reminder job.
 
     Orchestrates the full flow per user: find due users, select a memory
-    per user, generate an insight, send via Telegram, and update the memory.
+    per user, generate an insight, send via Telegram, record in conversation
+    thread, and update the memory.
     """
     due_users = await asyncio.to_thread(get_due_users)
     if not due_users:
         logger.info("No users due for a reminder at this hour.")
         return
+
+    graph = build_reminder_graph()
 
     for chat_id, user_settings_id in due_users:
         try:
@@ -329,6 +373,20 @@ async def main() -> None:
                 source=source,
                 insight=insight_resp.insight,
                 question=insight_resp.question,
+            )
+
+            # Build the same reminder text that was sent to Telegram
+            title = "🧠 Reminder sent"
+            parts = [title, "", f"<blockquote>{content}</blockquote>"]
+            if source:
+                parts.append(f"<i>— {source}</i>")
+            parts.extend(["", f"💡 {insight_resp.insight}", "", f"❓ {insight_resp.question}"])
+            reminder_text = "\n".join(parts)
+
+            await record_reminder_in_thread(
+                graph=graph,
+                chat_id=chat_id,
+                text=reminder_text,
             )
 
             await asyncio.to_thread(update_memory, memory_id=memory_id, review_count=review_count)
