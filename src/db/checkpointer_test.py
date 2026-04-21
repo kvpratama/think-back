@@ -1,12 +1,13 @@
 """Tests for the PostgresSaver checkpointer module."""
 
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def reset_checkpointer_state():
+def reset_checkpointer_state() -> Generator[None, None, None]:
     """Reset checkpointer singleton state before and after each test."""
     import src.db.checkpointer as checkpointer_module
 

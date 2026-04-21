@@ -153,14 +153,6 @@ async def process_batch(
         action=constants.ChatAction.TYPING,
     )
 
-    graph = await aget_graph(context)
-    # In private chats, chat_id equals user_id, so this uniquely identifies the user's thread.
-    # ThinkBack is restricted to private chats only (enforced via filters.ChatType.PRIVATE).
-    thread_id = str(chat_id)
-    config = RunnableConfig(
-        {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
-    )
-
     accumulated_response = ""
     final_response = ""
     handled_interrupt = False
@@ -170,6 +162,13 @@ async def process_batch(
     draft_id = random.randint(1, 2**31 - 1)
 
     try:
+        graph = await aget_graph(context)
+        # In private chats, chat_id equals user_id, so this uniquely identifies the user's thread.
+        # ThinkBack is restricted to private chats only (enforced via filters.ChatType.PRIVATE).
+        thread_id = str(chat_id)
+        config = RunnableConfig(
+            {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
+        )
         async for chunk in graph.astream(
             {"messages": [{"role": "user", "content": combined_text}]},
             config=config,
@@ -309,8 +308,10 @@ async def _post_shutdown(application: Application) -> None:
     from src.db.checkpointer import aclose_checkpointer
 
     message_batcher = application.bot_data["message_batcher"]
-    await message_batcher.shutdown()
-    await aclose_checkpointer()
+    try:
+        await message_batcher.shutdown()
+    finally:
+        await aclose_checkpointer()
 
 
 def create_application() -> Application:
@@ -344,7 +345,9 @@ def create_application() -> Application:
         CommandHandler("reminders", reminders_command, filters=filters.ChatType.PRIVATE)
     )
     application.add_handler(CommandHandler("help", help_command, filters=filters.ChatType.PRIVATE))
-    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+    application.add_handler(
+        MessageHandler(filters.COMMAND & filters.ChatType.PRIVATE, unknown_command)
+    )
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, handle_message)
     )

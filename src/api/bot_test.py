@@ -679,7 +679,7 @@ async def test_handlers_reject_group_chats() -> None:
         app = create_application()
 
     # Verify that all command and text message handlers restrict to private chats.
-    # The unknown_command handler and fallback handler are exceptions.
+    # Only the fallback handler (non_private_chat_handler) is an exception.
     for handler in app.handlers[0]:
         if not isinstance(handler, (CommandHandler, MessageHandler)):
             continue
@@ -690,8 +690,8 @@ async def test_handlers_reject_group_chats() -> None:
                 f"CommandHandler for {handler.commands} missing ChatType.PRIVATE filter"
             )
         elif isinstance(handler, MessageHandler):
-            # Text handler should require PRIVATE; fallback uses ~PRIVATE (contains "NOT")
-            if "COMMAND" not in filter_str and "NOT" not in filter_str:
+            # All message handlers should require PRIVATE except fallback (uses ~PRIVATE)
+            if "NOT" not in filter_str:
                 assert "PRIVATE" in filter_str, (
                     f"MessageHandler with filters={filter_str} missing ChatType.PRIVATE"
                 )
