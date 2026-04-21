@@ -31,6 +31,7 @@ jobs:
       - name: Run reminder job
         run: uv run python -m src.jobs.remind
         env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
