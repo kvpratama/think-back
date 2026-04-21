@@ -424,3 +424,26 @@ async def test_handle_callback_unknown_action_does_not_invoke_graph(
 
     # Unknown actions should NOT trigger graph.ainvoke
     mock_graph.ainvoke.assert_not_called()
+
+
+async def test_handle_callback_lazy_initializes_graph(
+    mock_callback_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """Test that handle_callback calls aget_graph when graph not cached."""
+    from src.api.bot_callbacks import handle_callback
+
+    # Do NOT pre-populate bot_data["graph"] to exercise lazy-init path
+    mock_graph = MagicMock()
+    mock_result_msg = MagicMock()
+    mock_result_msg.content = "Memory saved"
+    mock_graph.ainvoke = AsyncMock(return_value={"messages": [mock_result_msg]})
+
+    with (
+        patch("src.api.bot_callbacks.get_user_settings_id", return_value="settings-1"),
+        patch("src.api.bot_callbacks.aget_graph", return_value=mock_graph) as mock_aget_graph,
+    ):
+        await handle_callback(mock_callback_update, mock_context)
+
+    mock_aget_graph.assert_awaited_once_with(mock_context)
+    mock_graph.ainvoke.assert_called_once()

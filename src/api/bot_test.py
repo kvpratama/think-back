@@ -641,3 +641,25 @@ async def test_commands_bypass_batching(mock_update: Update, mock_context: Magic
     assert mock_update.message.from_user is not None
     key = (str(mock_update.message.chat.id), mock_update.message.from_user.id)
     assert key not in message_batcher.buffers
+
+
+async def test_post_shutdown_closes_checkpointer() -> None:
+    """Test that _post_shutdown calls aclose_checkpointer."""
+    from src.api.bot import create_application
+
+    with patch("src.api.bot.get_settings") as mock_settings:
+        mock_settings.return_value = MagicMock()
+        mock_settings.return_value.telegram_bot_token.get_secret_value.return_value = "test-token"
+
+        app = create_application()
+
+    mock_app = MagicMock()
+    mock_batcher = AsyncMock()
+    mock_app.bot_data = {"message_batcher": mock_batcher}
+
+    with patch("src.db.checkpointer.aclose_checkpointer") as mock_close:
+        assert app.post_shutdown is not None
+        await app.post_shutdown(mock_app)
+
+    mock_batcher.shutdown.assert_awaited_once()
+    mock_close.assert_awaited_once()
