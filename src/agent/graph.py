@@ -14,7 +14,6 @@ from langchain.agents.middleware import ToolCallLimitMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
 from src.agent.tools import save_memory_tool, search_memories_tool
@@ -197,21 +196,17 @@ def _get_llm() -> BaseChatModel:
 
 
 def build_graph(
-    checkpointer: BaseCheckpointSaver[Any] | None = None,
+    checkpointer: BaseCheckpointSaver[Any],
 ) -> CompiledStateGraph:
     """Build and compile the ThinkBack agent.
 
     Args:
-        checkpointer: Optional checkpoint saver for state persistence.
-            Defaults to InMemorySaver if None.
+        checkpointer: Checkpoint saver for state persistence.
 
     Returns:
         Compiled agent ready for invocation.
     """
     llm = _get_llm()
-
-    if checkpointer is None:
-        checkpointer = InMemorySaver()
 
     agent = create_agent(
         model=llm,

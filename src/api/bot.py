@@ -34,7 +34,7 @@ from src.api.bot_commands import (
     start_command,
     timezone_command,
 )
-from src.api.bot_graph import get_graph
+from src.api.bot_graph import aget_graph
 from src.api.bot_helpers import truncate_for_telegram
 from src.core.config import get_settings
 from src.db.user_settings import get_user_settings_id
@@ -95,6 +95,25 @@ async def handle_message(
     )
 
 
+async def non_private_chat_handler(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Inform users that the bot only works in private chats.
+
+    Args:
+        update: The Telegram update.
+        context: The Telegram context.
+    """
+    if not update.message:
+        return
+
+    await update.message.reply_text(
+        "👋 ThinkBack only works in private chats.\n\n"
+        "Please message me directly to get started: /start"
+    )
+
+
 async def process_batch(
     chat_id: str,
     user_id: int,
@@ -134,12 +153,6 @@ async def process_batch(
         action=constants.ChatAction.TYPING,
     )
 
-    graph = get_graph(context)
-    thread_id = f"{chat_id}_{user_id}"
-    config = RunnableConfig(
-        {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
-    )
-
     accumulated_response = ""
     final_response = ""
     handled_interrupt = False
@@ -149,6 +162,13 @@ async def process_batch(
     draft_id = random.randint(1, 2**31 - 1)
 
     try:
+        graph = await aget_graph(context)
+        # In private chats, chat_id equals user_id, so this uniquely identifies the user's thread.
+        # ThinkBack is restricted to private chats only (enforced via filters.ChatType.PRIVATE).
+        thread_id = str(chat_id)
+        config = RunnableConfig(
+            {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
+        )
         async for chunk in graph.astream(
             {"messages": [{"role": "user", "content": combined_text}]},
             config=config,
@@ -285,8 +305,13 @@ async def _post_shutdown(application: Application) -> None:
     Args:
         application: The Telegram Application instance.
     """
+    from src.db.checkpointer import aclose_checkpointer
+
     message_batcher = application.bot_data["message_batcher"]
-    await message_batcher.shutdown()
+    try:
+        await message_batcher.shutdown()
+    finally:
+        await aclose_checkpointer()
 
 
 def create_application() -> Application:
@@ -310,14 +335,27 @@ def create_application() -> Application:
         timeout=1.0, process_callback=process_batch
     )
 
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("timezone", timezone_command))
-    application.add_handler(CommandHandler("reminders", reminders_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(
+        CommandHandler("start", start_command, filters=filters.ChatType.PRIVATE)
+    )
+    application.add_handler(
+        CommandHandler("timezone", timezone_command, filters=filters.ChatType.PRIVATE)
+    )
+    application.add_handler(
+        CommandHandler("reminders", reminders_command, filters=filters.ChatType.PRIVATE)
+    )
+    application.add_handler(CommandHandler("help", help_command, filters=filters.ChatType.PRIVATE))
+    application.add_handler(
+        MessageHandler(filters.COMMAND & filters.ChatType.PRIVATE, unknown_command)
+    )
+    application.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, handle_message)
+    )
     application.add_handler(CallbackQueryHandler(handle_callback))
     application.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
+
+    # Fallback handler for non-private chats (must be last)
+    application.add_handler(MessageHandler(~filters.ChatType.PRIVATE, non_private_chat_handler))
 
     return application
 

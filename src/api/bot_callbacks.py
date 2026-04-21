@@ -16,7 +16,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes
 
-from src.api.bot_graph import get_graph
+from src.api.bot_graph import aget_graph
 from src.api.bot_helpers import truncate_for_telegram
 from src.api.bot_keyboards import (
     build_hour_picker_keyboard,
@@ -199,7 +199,7 @@ async def handle_callback(
             logger.exception("Failed to edit message")
         return
 
-    graph = get_graph(context)
+    graph = await aget_graph(context)
     config = RunnableConfig(
         {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
     )

@@ -5,16 +5,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 def test_build_graph_returns_compiled_graph() -> None:
     """Test that build_graph returns a compiled agent."""
+    from langgraph.checkpoint.memory import InMemorySaver
+
     from src.agent.graph import build_graph
 
     with patch("src.agent.graph._get_llm") as mock_get_llm:
         mock_get_llm.return_value = MagicMock()
-        graph = build_graph()
+        graph = build_graph(checkpointer=InMemorySaver())
         assert graph is not None
 
 
 async def test_graph_query_flow() -> None:
     """Test the query flow through the agent."""
+    from langgraph.checkpoint.memory import InMemorySaver
+
     from src.agent.graph import _get_llm, build_graph
     from src.core.config import get_settings
 
@@ -48,7 +52,7 @@ async def test_graph_query_flow() -> None:
                         {"content": "Consistency beats intensity", "similarity": 0.9},
                     ]
 
-                    graph = build_graph()
+                    graph = build_graph(checkpointer=InMemorySaver())
                     result = await graph.ainvoke(
                         {"messages": [{"role": "user", "content": "What do I know about habits?"}]},
                         config={"configurable": {"thread_id": "test-query"}},

@@ -31,11 +31,12 @@ async def run_pipeline(inputs: dict) -> dict:
     Adapter that calls your real LangGraph pipeline and normalises
     the output into the shape the evaluators expect.
     """
+    from langgraph.checkpoint.memory import InMemorySaver
 
     from src.agent.graph import build_graph
 
     config: RunnableConfig = {"configurable": {"thread_id": f"eval-{uuid.uuid4()}"}}
-    graph = build_graph()
+    graph = build_graph(checkpointer=InMemorySaver())
     response = await graph.ainvoke(inputs, config=config)
     return {"retrieved_memories": response["memories"], "response": response["response"]}
 

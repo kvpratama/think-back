@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 from telegram import Bot
 from telegram.constants import ParseMode
@@ -213,7 +214,7 @@ async def send_reminder(
     source: str | None,
     insight: str,
     question: str,
-) -> None:
+) -> str:
     """Send a formatted reminder message via Telegram.
 
     Formats the memory, insight, and question as an HTML message
@@ -225,6 +226,9 @@ async def send_reminder(
         source: Optional attribution (author, book, newsletter).
         insight: The AI-generated insight.
         question: The AI-generated reflective question.
+
+    Returns:
+        The formatted message text that was sent.
     """
     from src.api.bot_helpers import sanitize_for_telegram_html
     from src.core.config import get_settings
@@ -269,6 +273,8 @@ async def send_reminder(
         parse_mode=ParseMode.HTML,
     )
 
+    return text
+
 
 def update_memory(memory_id: str, review_count: int) -> None:
     """Update a memory's review metadata after surfacing.
@@ -288,16 +294,63 @@ def update_memory(memory_id: str, review_count: int) -> None:
     ).eq("id", memory_id).execute()
 
 
+async def abuild_reminder_graph() -> CompiledStateGraph:
+    """Build a graph instance for recording reminders in conversation threads.
+
+    Returns:
+        Compiled agent graph with PostgresSaver checkpointer.
+    """
+    from src.agent.graph import build_graph
+    from src.db.checkpointer import aget_checkpointer
+
+    return build_graph(checkpointer=await aget_checkpointer())
+
+
+async def record_reminder_in_thread(
+    graph: CompiledStateGraph,
+    chat_id: str,
+    text: str,
+) -> None:
+    """Record a sent reminder as an AIMessage in the user's conversation thread.
+
+    Uses graph.update_state to append the message without triggering agent logic.
+    Fails silently — the user still receives their Telegram message even if
+    recording to the checkpoint store fails.
+
+    Args:
+        graph: The compiled agent graph with a persistent checkpointer.
+        chat_id: The Telegram chat ID (equals user ID for private chats).
+        text: The reminder message text that was sent to the user.
+    """
+    from langchain_core.messages import AIMessage
+    from langchain_core.runnables import RunnableConfig
+
+    # In private chats, chat_id equals user_id, so this uniquely identifies the user's thread.
+    # ThinkBack is restricted to private chats only (enforced via filters.ChatType.PRIVATE).
+    thread_id = str(chat_id)
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+    try:
+        await graph.aupdate_state(config, {"messages": [AIMessage(content=text)]})
+    except Exception:
+        logger.exception(
+            "Failed to record reminder in thread %s",
+            thread_id,
+        )
+
+
 async def main() -> None:
     """Run the spaced repetition reminder job.
 
     Orchestrates the full flow per user: find due users, select a memory
-    per user, generate an insight, send via Telegram, and update the memory.
+    per user, generate an insight, send via Telegram, record in conversation
+    thread, and update the memory.
     """
     due_users = await asyncio.to_thread(get_due_users)
     if not due_users:
         logger.info("No users due for a reminder at this hour.")
         return
+
+    graph = await abuild_reminder_graph()
 
     for chat_id, user_settings_id in due_users:
         try:
@@ -323,12 +376,18 @@ async def main() -> None:
 
             insight_resp = await generate_insight(content=content, source=source)
 
-            await send_reminder(
+            reminder_text = await send_reminder(
                 chat_id=chat_id,
                 content=content,
                 source=source,
                 insight=insight_resp.insight,
                 question=insight_resp.question,
+            )
+
+            await record_reminder_in_thread(
+                graph=graph,
+                chat_id=chat_id,
+                text=reminder_text,
             )
 
             await asyncio.to_thread(update_memory, memory_id=memory_id, review_count=review_count)

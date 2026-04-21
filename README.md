@@ -120,6 +120,12 @@ Just chat naturally with the bot:
 
 ---
 
+## ⚠️ Important Notes
+
+- **Private chats only**: ThinkBack is designed for one-on-one conversations. It does not support group chats or channels.
+
+---
+
 ## ⏰ Automated Reminders
 
 ThinkBack includes a spaced repetition system that automatically surfaces your memories via Telegram.

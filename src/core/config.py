@@ -37,6 +37,7 @@ class Settings(BaseSettings):
         eval_llm_provider_base_url: Base URL for the evaluation LLM provider API.
         eval_llm_api_key: API key for the evaluation LLM provider.
         eval_jury_judges: Configuration for evaluation jury judges.
+        database_url: Direct Postgres connection string for LangGraph checkpointer.
     """
 
     model_config = SettingsConfigDict(
@@ -49,6 +50,7 @@ class Settings(BaseSettings):
     # Required settings (loaded from environment variables)
     supabase_url: SecretStr
     supabase_key: SecretStr
+    database_url: SecretStr
     openai_api_key: SecretStr
     gemini_api_key: SecretStr
     telegram_bot_token: SecretStr
