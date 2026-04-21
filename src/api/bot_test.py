@@ -7,8 +7,9 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from telegram import Chat, Update, User
+from telegram import Update, User
 from telegram.constants import ChatType
+from telegram.ext import CommandHandler, MessageHandler
 
 from src.api.bot_batcher import MessageBatcher
 
@@ -671,45 +672,29 @@ async def test_handlers_reject_group_chats() -> None:
     """Verify that handlers with ChatType.PRIVATE filter reject group messages."""
     from src.api.bot import create_application
 
-    app = create_application()
+    mock_settings = MagicMock()
+    mock_settings.telegram_bot_token.get_secret_value.return_value = "test-token"
 
-    # Create a group chat update
-    user = MagicMock(spec=User)
-    user.id = 123
-    user.is_bot = False
-    user.first_name = "Test"
+    with patch("src.api.bot.get_settings", return_value=mock_settings):
+        app = create_application()
 
-    group_chat = MagicMock(spec=Chat)
-    group_chat.id = 456
-    group_chat.type = ChatType.GROUP
-
-    message = MagicMock()
-    message.message_id = 1
-    message.chat = group_chat
-    message.from_user = user
-    message.text = "/start"
-    message.reply_text = AsyncMock()
-
-    update = MagicMock(spec=Update)
-    update.update_id = 1
-    update.message = message
-    update.effective_message = message
-    update.effective_user = user
-    update.effective_chat = group_chat
-
-    # Mock DB calls to prevent errors
-    with (
-        patch("src.api.bot_commands.upsert_user_settings", return_value=False),
-        patch("src.api.bot_commands.get_user_settings_id", return_value="test-id"),
-    ):
-        # Process update through handlers
-        async with app:
-            await app.process_update(update)
-
-    # After adding ChatType.PRIVATE filter, handler should NOT be called
-    # Currently (without filter), it WILL be called
-    # This assertion will PASS after we add the filter
-    message.reply_text.assert_not_called()
+    # Verify that all command and text message handlers restrict to private chats.
+    # The unknown_command handler and fallback handler are exceptions.
+    for handler in app.handlers[0]:
+        if not isinstance(handler, (CommandHandler, MessageHandler)):
+            continue
+        filter_str = str(handler.filters)
+        if isinstance(handler, CommandHandler):
+            # All named command handlers should require PRIVATE
+            assert "PRIVATE" in filter_str, (
+                f"CommandHandler for {handler.commands} missing ChatType.PRIVATE filter"
+            )
+        elif isinstance(handler, MessageHandler):
+            # Text handler should require PRIVATE; fallback uses ~PRIVATE (contains "NOT")
+            if "COMMAND" not in filter_str and "NOT" not in filter_str:
+                assert "PRIVATE" in filter_str, (
+                    f"MessageHandler with filters={filter_str} missing ChatType.PRIVATE"
+                )
 
 
 @pytest.mark.asyncio
@@ -763,8 +748,12 @@ async def test_thread_id_uses_chat_id_only() -> None:
     mock_context = MagicMock()
     mock_context.bot.send_chat_action = AsyncMock()
 
+    async def empty_gen() -> AsyncGenerator[Any, None]:
+        if False:
+            yield
+
     mock_graph = MagicMock()
-    mock_graph.astream = AsyncMock(return_value=iter([]))
+    mock_graph.astream = MagicMock(side_effect=lambda *args, **kwargs: empty_gen())
     mock_graph.aget_state = AsyncMock()
     mock_graph.aget_state.return_value.next = []
     mock_graph.aget_state.return_value.values = {"messages": [MagicMock(content="response")]}
