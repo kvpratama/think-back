@@ -19,6 +19,7 @@ _NO_DOTENV = SettingsConfigDict(
 BASE_ENV = {
     "SUPABASE_URL": "https://test.supabase.co",
     "SUPABASE_KEY": "test-key",
+    "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
     "OPENAI_API_KEY": "sk-test",
     "GEMINI_API_KEY": "gemini-test",
     "TELEGRAM_BOT_TOKEN": "123:ABC",
@@ -34,6 +35,7 @@ def test_settings_loads_from_env() -> None:
         {
             "SUPABASE_URL": "https://test.supabase.co",
             "SUPABASE_KEY": "test-key",
+            "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
             "OPENAI_API_KEY": "sk-test123",
             "GEMINI_API_KEY": "gemini-test-key",
             "TELEGRAM_BOT_TOKEN": "123:ABC-DEF",
@@ -69,6 +71,7 @@ def test_settings_has_default_llm_model() -> None:
         {
             "SUPABASE_URL": "https://test.supabase.co",
             "SUPABASE_KEY": "test-key",
+            "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
             "OPENAI_API_KEY": "sk-test",
             "GEMINI_API_KEY": "gemini-test",
             "TELEGRAM_BOT_TOKEN": "123:ABC",
@@ -90,6 +93,7 @@ def test_settings_has_default_embedding_model() -> None:
         {
             "SUPABASE_URL": "https://test.supabase.co",
             "SUPABASE_KEY": "test-key",
+            "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
             "OPENAI_API_KEY": "sk-test",
             "GEMINI_API_KEY": "gemini-test",
             "TELEGRAM_BOT_TOKEN": "123:ABC",
@@ -184,6 +188,7 @@ def test_vector_dimensions_is_fixed_constant() -> None:
         {
             "SUPABASE_URL": "https://test.supabase.co",
             "SUPABASE_KEY": "test-key",
+            "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
             "OPENAI_API_KEY": "sk-test",
             "GEMINI_API_KEY": "gemini-test",
             "TELEGRAM_BOT_TOKEN": "123:ABC",
@@ -194,3 +199,20 @@ def test_vector_dimensions_is_fixed_constant() -> None:
             settings = Settings()  # type: ignore[call-arg]
 
     assert not hasattr(settings, "vector_dimensions")
+
+
+def test_settings_database_url_is_required() -> None:
+    """Test that database_url is loaded from environment."""
+    from src.core.config import Settings
+
+    with patch.dict(
+        os.environ,
+        {**BASE_ENV, "DATABASE_URL": "postgresql://test:test@localhost:5432/testdb"},
+        clear=True,
+    ):
+        with patch.object(Settings, "model_config", _NO_DOTENV):
+            settings = Settings()  # type: ignore[call-arg]
+
+    assert (
+        settings.database_url.get_secret_value() == "postgresql://test:test@localhost:5432/testdb"
+    )
