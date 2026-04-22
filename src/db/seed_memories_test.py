@@ -37,7 +37,10 @@ async def test_imports_all_entries_from_json(tmp_path: Path) -> None:
     test_file = tmp_path / "test_seed.json"
     test_file.write_text(json.dumps(test_data))
 
-    with patch("src.db.seed_memories.save_memory", new_callable=AsyncMock) as mock_save:
+    with (
+        patch("src.db.seed_memories.save_memory", new_callable=AsyncMock) as mock_save,
+        patch("src.db.seed_memories.asyncio.sleep", new_callable=AsyncMock),
+    ):
         mock_save.return_value = {"id": "test-id", "content": "test"}
 
         result = await seed_memories(str(test_file), user_settings_id="usr-123")
