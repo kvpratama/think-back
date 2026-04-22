@@ -29,6 +29,7 @@ class Settings(BaseSettings):
         llm_provider_base_url: Base URL for the LLM provider API.
         embedding_model: Embedding model name for vector generation.
         search_top_k: Number of top results to return from search.
+        max_turns: Number of turns to keep (a turn = one user message + all AI/tool messages).
         webhook_url: Public HTTPS URL to enable webhook mode (empty for polling).
         webhook_secret: Secret token for Telegram webhook request verification.
         port: Port for the webhook server.

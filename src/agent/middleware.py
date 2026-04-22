@@ -6,94 +6,72 @@ the last N conversation turns to prevent context window bloat.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Any
 
 from langchain.agents.middleware import before_model
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (
+    BaseMessage,
+    HumanMessage,
+    RemoveMessage,
+    trim_messages,
+)
 
 from src.core.config import get_settings
 
 
-def split_into_turns(messages: Sequence[BaseMessage]) -> list[list[BaseMessage]]:
-    """Split a flat message list into turn groups.
-
-    A turn starts with a HumanMessage and includes all subsequent
-    messages until the next HumanMessage. Messages before the first
-    HumanMessage are prepended to the first turn.
-
-    Args:
-        messages: Flat list of conversation messages (no SystemMessages expected).
-
-    Returns:
-        List of turn groups, where each group is a list of messages.
-    """
-    if not messages:
-        return []
-
-    turns: list[list[BaseMessage]] = []
-    current: list[BaseMessage] = []
-    seen_human = False
-
-    for msg in messages:
-        if isinstance(msg, HumanMessage):
-            if seen_human and current:
-                turns.append(current)
-                current = []
-            seen_human = True
-        current.append(msg)
-
-    if current:
-        turns.append(current)
-
-    return turns
-
-
 def _trim_messages_by_turns_impl(state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
-    """Implementation of turn-based message trimming logic.
+    """Implementation of turn-based message trimming logic using trim_messages.
 
-    Preserves all SystemMessages at the start. Groups remaining messages
-    into turns (each starting with a HumanMessage) and keeps only the
-    last ``max_turns`` turns.
+    A "turn" is counted as one HumanMessage and all subsequent non-Human
+    messages (AIMessages, ToolMessages, etc.) until the next HumanMessage.
+    Uses a custom turn counter that counts HumanMessages to keep only the
+    last ``max_turns`` turns. Preserves the initial SystemMessage.
 
     Args:
         state: The current agent state containing messages.
         runtime: The LangGraph runtime (unused).
 
     Returns:
-        Updated state with trimmed messages, or None if no trimming needed.
+        Update dictionary with RemoveMessage objects for dropped messages,
+        or None if no trimming needed.
     """
     messages = state.get("messages", [])
     if not messages:
         return None
 
-    system_msgs = []
-    conversation = []
-    for msg in messages:
-        if isinstance(msg, SystemMessage) and not conversation:
-            system_msgs.append(msg)
-        else:
-            conversation.append(msg)
-
-    turns = split_into_turns(conversation)
-
     settings = get_settings()
-    if len(turns) <= settings.max_turns:
+
+    def turn_counter(msgs: list[BaseMessage]) -> int:
+        return sum(1 for m in msgs if isinstance(m, HumanMessage))
+
+    kept = trim_messages(
+        messages,
+        max_tokens=settings.max_turns,
+        token_counter=turn_counter,
+        strategy="last",
+        start_on="human",
+        include_system=True,
+        allow_partial=False,
+    )
+
+    if len(kept) == len(messages):
         return None
 
-    kept_turns = turns[-settings.max_turns :]
-    kept_messages = [msg for turn in kept_turns for msg in turn]
+    # Compute difference to generate RemoveMessage objects for LangGraph state
+    kept_ids = {m.id for m in kept if m.id}
+    remove_msgs = [RemoveMessage(id=m.id) for m in messages if m.id and m.id not in kept_ids]
 
-    return {"messages": system_msgs + kept_messages}
+    return {"messages": remove_msgs} if remove_msgs else None
 
 
 @before_model
 def trim_messages_by_turns(state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
     """Trim conversation history to the last N turns before each LLM call.
 
-    Preserves all SystemMessages at the start. Groups remaining messages
-    into turns (each starting with a HumanMessage) and keeps only the
-    last ``max_turns`` turns.
+    A "turn" is defined as one HumanMessage plus all subsequent messages
+    (AI responses, tool calls, tool results) until the next HumanMessage.
+    Preserves the initial SystemMessage and keeps only the last
+    ``max_turns`` turns.
 
     Args:
         state: The current agent state containing messages.
