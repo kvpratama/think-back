@@ -29,6 +29,7 @@ class Settings(BaseSettings):
         llm_provider_base_url: Base URL for the LLM provider API.
         embedding_model: Embedding model name for vector generation.
         search_top_k: Number of top results to return from search.
+        max_turns: Number of turns to keep (a turn = one user message + all AI/tool messages).
         webhook_url: Public HTTPS URL to enable webhook mode (empty for polling).
         webhook_secret: Secret token for Telegram webhook request verification.
         port: Port for the webhook server.
@@ -61,6 +62,7 @@ class Settings(BaseSettings):
     llm_provider_base_url: str = "https://api.openai.com/v1"
     embedding_model: str = "gemini-embedding-001"
     search_top_k: int = Field(default=3, ge=1, le=100)
+    max_turns: int = Field(default=5, ge=1, le=50)
 
     # Webhook (set WEBHOOK_URL to enable webhook mode; leave empty for polling)
     webhook_url: str = ""
