@@ -183,7 +183,7 @@ async def handle_callback(
     callback_chat_id = parts[2] if len(parts) > 2 else ""
     approved = action == "save_yes"
 
-    expected_thread_id = f"{query.message.chat.id}_{query.from_user.id}"
+    expected_thread_id = str(query.message.chat.id)
     if callback_chat_id != str(query.message.chat.id) or thread_id != expected_thread_id:
         try:
             await query.edit_message_text(text="Please run /start first.")

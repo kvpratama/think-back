@@ -30,7 +30,7 @@ def mock_context() -> MagicMock:
 def mock_callback_update(mock_user: MagicMock) -> Update:
     """Create a mock Telegram Update with callback query."""
     mock_query = MagicMock()
-    mock_query.data = "save_yes|67890_12345|67890"
+    mock_query.data = "save_yes|67890|67890"
     mock_query.answer = AsyncMock()
     mock_query.edit_message_text = AsyncMock()
     mock_query.from_user = mock_user
@@ -95,7 +95,7 @@ async def test_handle_callback_approved(
     config = call_args.kwargs.get("config", {})
 
     assert command.resume == {"approved": True}
-    assert config["configurable"]["thread_id"] == "67890_12345"
+    assert config["configurable"]["thread_id"] == "67890"
     assert config["configurable"]["user_settings_id"] == "settings-1"
 
     assert mock_callback_update.callback_query is not None
@@ -110,7 +110,7 @@ async def test_handle_callback_cancelled(
     from src.api.bot_callbacks import handle_callback
 
     assert mock_callback_update.callback_query is not None
-    cast(Any, mock_callback_update.callback_query).data = "save_no|67890_12345|67890"
+    cast(Any, mock_callback_update.callback_query).data = "save_no|67890|67890"
 
     mock_graph = MagicMock()
     mock_result_msg = MagicMock()
@@ -131,7 +131,7 @@ async def test_handle_callback_cancelled(
     config = call_args.kwargs.get("config", {})
 
     assert command.resume == {"approved": False}
-    assert config["configurable"]["thread_id"] == "67890_12345"
+    assert config["configurable"]["thread_id"] == "67890"
     assert config["configurable"]["user_settings_id"] == "settings-1"
 
 
