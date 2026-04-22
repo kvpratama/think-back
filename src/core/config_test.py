@@ -227,3 +227,23 @@ def test_settings_database_url_is_required() -> None:
         with patch.object(Settings, "model_config", _NO_DOTENV):
             with pytest.raises(ValidationError):
                 Settings()  # type: ignore[call-arg]
+
+
+def test_max_turns_default() -> None:
+    """max_turns defaults to 5 when env var is not set."""
+    from src.core.config import Settings
+
+    with patch.dict(os.environ, BASE_ENV, clear=True):
+        with patch.object(Settings, "model_config", _NO_DOTENV):
+            settings = Settings()  # type: ignore[call-arg]
+    assert settings.max_turns == 5
+
+
+def test_max_turns_from_env() -> None:
+    """max_turns reads from MAX_TURNS env var."""
+    from src.core.config import Settings
+
+    with patch.dict(os.environ, {**BASE_ENV, "MAX_TURNS": "10"}, clear=True):
+        with patch.object(Settings, "model_config", _NO_DOTENV):
+            settings = Settings()  # type: ignore[call-arg]
+    assert settings.max_turns == 10

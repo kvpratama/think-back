@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     llm_provider_base_url: str = "https://api.openai.com/v1"
     embedding_model: str = "gemini-embedding-001"
     search_top_k: int = Field(default=3, ge=1, le=100)
+    max_turns: int = Field(default=5, ge=1, le=50)
 
     # Webhook (set WEBHOOK_URL to enable webhook mode; leave empty for polling)
     webhook_url: str = ""

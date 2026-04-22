@@ -16,6 +16,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 
+from src.agent.middleware import trim_messages_by_turns
 from src.agent.tools import save_memory_tool, search_memories_tool
 
 SYSTEM_PROMPT = """
@@ -213,7 +214,7 @@ def build_graph(
         tools=[save_memory_tool, search_memories_tool],
         system_prompt=SYSTEM_PROMPT,
         checkpointer=checkpointer,
-        middleware=[ToolCallLimitMiddleware(run_limit=5)],
+        middleware=[trim_messages_by_turns, ToolCallLimitMiddleware(run_limit=5)],  # type: ignore[arg-type]
     )
 
     return agent

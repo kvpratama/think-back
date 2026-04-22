@@ -33,6 +33,7 @@ async def test_graph_query_flow() -> None:
                 mock_settings.llm_provider = "openai"
                 mock_settings.openai_api_key.get_secret_value.return_value = "test-key"
                 mock_settings.llm_provider_base_url = "https://api.openai.com/v1"
+                mock_settings.max_turns = 5
                 mock_settings_cls.return_value = mock_settings
 
                 from langchain_core.messages import AIMessage
@@ -63,3 +64,24 @@ async def test_graph_query_flow() -> None:
     finally:
         _get_llm.cache_clear()
         get_settings.cache_clear()
+
+
+def test_build_graph_includes_trim_middleware() -> None:
+    """build_graph includes trim_messages_by_turns in the middleware list."""
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from src.agent.graph import build_graph
+
+    with patch("src.agent.graph._get_llm") as mock_get_llm:
+        with patch("src.agent.graph.create_agent") as mock_create_agent:
+            mock_get_llm.return_value = MagicMock()
+            mock_create_agent.return_value = MagicMock()
+            build_graph(checkpointer=InMemorySaver())
+
+            call_kwargs = mock_create_agent.call_args.kwargs
+            middleware_list = call_kwargs.get("middleware", [])
+            middleware_names = [
+                getattr(m, "__name__", "") or getattr(m, "name", "") or type(m).__name__
+                for m in middleware_list
+            ]
+            assert "trim_messages_by_turns" in middleware_names
