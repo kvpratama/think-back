@@ -85,3 +85,6 @@ def test_build_graph_includes_trim_middleware() -> None:
                 for m in middleware_list
             ]
             assert "trim_messages_by_turns" in middleware_names
+            trim_idx = middleware_names.index("trim_messages_by_turns")
+            tool_limit_idx = middleware_names.index("ToolCallLimitMiddleware")
+            assert trim_idx < tool_limit_idx

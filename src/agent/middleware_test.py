@@ -84,6 +84,8 @@ def test_trim_preserves_tool_chains() -> None:
     assert all(isinstance(m, RemoveMessage) for m in trimmed)
     assert trimmed[0].id == "u_1"
     assert trimmed[1].id == "a_1"
+    # Verify kept turn's tool-call chain is preserved (not in trimmed)
+    assert all(m.id not in {"a_2", "t_1", "a_3"} for m in trimmed)
 
 
 def test_trim_no_system_message() -> None:
