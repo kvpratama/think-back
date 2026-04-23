@@ -5,11 +5,13 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from langchain_core.prompts import PromptTemplate
 from langsmith.schemas import Example, Run
 
 from src.evals.evaluators.answer_relevance import (
     AnswerRelevanceModel,
+    _get_llm_judge,
     answer_relevance,
 )
 
@@ -52,6 +54,12 @@ def _make_example(
         outputs={"expected_contents": [], "expected_answer_criteria": ""},
         metadata={"case_type": case_type, "notes": ""} if with_metadata else None,
     )
+
+
+@pytest.fixture(autouse=True)
+def _clear_judge_cache() -> None:
+    """Clear the lru_cache on _get_llm_judge before each test."""
+    _get_llm_judge.cache_clear()
 
 
 # ---------------------------------------------------------------------------
@@ -121,15 +129,17 @@ class TestAnswerRelevanceEarlyExit:
 class TestAnswerRelevanceLLMJudge:
     """Tests for the LLM-as-judge scoring logic."""
 
-    @patch("src.evals.evaluators.answer_relevance._llm_judge", new_callable=AsyncMock)
+    @patch("src.evals.evaluators.answer_relevance._get_llm_judge")
     @patch("src.evals.evaluators.answer_relevance.get_prompt")
     async def test_relevant_answer_scores_1(
-        self, mock_prompt: MagicMock, mock_judge: AsyncMock
+        self, mock_prompt: MagicMock, mock_get_judge: MagicMock
     ) -> None:
         mock_prompt.return_value = PromptTemplate.from_template("{question}\n{answer}")
+        mock_judge = AsyncMock()
         mock_judge.ainvoke.return_value = AnswerRelevanceModel(
             reason="Directly addresses the question", score=1
         )
+        mock_get_judge.return_value = mock_judge
 
         run = _make_run(response="Python is a programming language.")
         example = _make_example(user_input="What is Python?")
@@ -139,13 +149,15 @@ class TestAnswerRelevanceLLMJudge:
         assert result.score == 1
         assert "Directly addresses" in (result.comment or "")
 
-    @patch("src.evals.evaluators.answer_relevance._llm_judge", new_callable=AsyncMock)
+    @patch("src.evals.evaluators.answer_relevance._get_llm_judge")
     @patch("src.evals.evaluators.answer_relevance.get_prompt")
     async def test_irrelevant_answer_scores_0(
-        self, mock_prompt: MagicMock, mock_judge: AsyncMock
+        self, mock_prompt: MagicMock, mock_get_judge: MagicMock
     ) -> None:
         mock_prompt.return_value = PromptTemplate.from_template("{question}\n{answer}")
+        mock_judge = AsyncMock()
         mock_judge.ainvoke.return_value = AnswerRelevanceModel(reason="Off-topic", score=0)
+        mock_get_judge.return_value = mock_judge
 
         run = _make_run(response="The weather is nice today.")
         example = _make_example(user_input="What is Python?")
@@ -155,13 +167,15 @@ class TestAnswerRelevanceLLMJudge:
         assert result.score == 0
         assert "Off-topic" in (result.comment or "")
 
-    @patch("src.evals.evaluators.answer_relevance._llm_judge", new_callable=AsyncMock)
+    @patch("src.evals.evaluators.answer_relevance._get_llm_judge")
     @patch("src.evals.evaluators.answer_relevance.get_prompt")
     async def test_unexpected_response_type_scores_0(
-        self, mock_prompt: MagicMock, mock_judge: AsyncMock
+        self, mock_prompt: MagicMock, mock_get_judge: MagicMock
     ) -> None:
         mock_prompt.return_value = PromptTemplate.from_template("{question}\n{answer}")
+        mock_judge = AsyncMock()
         mock_judge.ainvoke.return_value = "unexpected string"
+        mock_get_judge.return_value = mock_judge
 
         run = _make_run()
         example = _make_example()
@@ -171,13 +185,15 @@ class TestAnswerRelevanceLLMJudge:
         assert result.score == 0
         assert "No response from LLM" in (result.comment or "")
 
-    @patch("src.evals.evaluators.answer_relevance._llm_judge", new_callable=AsyncMock)
+    @patch("src.evals.evaluators.answer_relevance._get_llm_judge")
     @patch("src.evals.evaluators.answer_relevance.get_prompt")
     async def test_comment_includes_case_type(
-        self, mock_prompt: MagicMock, mock_judge: AsyncMock
+        self, mock_prompt: MagicMock, mock_get_judge: MagicMock
     ) -> None:
         mock_prompt.return_value = PromptTemplate.from_template("{question}\n{answer}")
+        mock_judge = AsyncMock()
         mock_judge.ainvoke.return_value = AnswerRelevanceModel(reason="Good", score=1)
+        mock_get_judge.return_value = mock_judge
 
         run = _make_run()
         example = _make_example(case_type="edge_case")
