@@ -7,7 +7,7 @@ Pushes all prompts from _DEFAULTS to LangSmith Hub with :prod tag.
 
 from langsmith import Client
 
-from src.core.prompts import _DEFAULTS
+from src.core.prompt_defaults import DEFAULTS as _DEFAULTS
 
 
 def main() -> None:

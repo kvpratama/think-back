@@ -18,6 +18,8 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.agent.middleware import trim_messages_by_turns
 from src.agent.tools import save_memory_tool, search_memories_tool
+from src.core.config import get_settings
+from src.core.prompts import get_prompt
 
 
 @lru_cache
@@ -27,8 +29,6 @@ def _get_llm() -> BaseChatModel:
     Returns:
         The configured LLM instance.
     """
-    from src.core.config import get_settings
-
     settings = get_settings()
     return init_chat_model(
         model=settings.llm_model,
@@ -50,13 +50,10 @@ def build_graph(
     Returns:
         Compiled agent ready for invocation.
     """
-    from src.core.prompts import get_prompt
-
     llm = _get_llm()
 
     prompt = get_prompt("thinkback-agent")
-    messages = prompt.format_messages()
-    system_msg = str(messages[0].content) if messages else ""
+    system_msg = str(prompt.invoke({}).to_messages()[0].content)
 
     agent = create_agent(
         model=llm,

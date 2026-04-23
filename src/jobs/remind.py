@@ -16,7 +16,6 @@ from zoneinfo import ZoneInfo
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 from telegram import Bot
@@ -192,7 +191,7 @@ async def generate_insight(content: str, source: str | None = None) -> InsightRe
     if source:
         user_content += f"\nSource: {source}"
 
-    messages = prompt.format_messages() + [HumanMessage(content=user_content)]
+    messages = prompt.invoke({"user_content": user_content}).to_messages()
 
     result = await structured_llm.ainvoke(messages)
     if not isinstance(result, InsightResponse):
