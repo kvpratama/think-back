@@ -16,7 +16,6 @@ from zoneinfo import ZoneInfo
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 from telegram import Bot
@@ -25,15 +24,6 @@ from telegram.constants import ParseMode
 from src.db.client import get_supabase_client
 
 logger = logging.getLogger(__name__)
-
-INSIGHT_SYSTEM_PROMPT = """You are ThinkBack, a reflective companion. \
-Given a saved memory (a quote or highlight), do two things:
-
-1. Insight: Rephrase the core lesson in your own words (1-2 sentences).
-2. Question: Ask one reflective question — a call to action, \
-self-reflection, or application prompt (1 sentence).
-
-Keep it warm, concise, and grounded in the original quote."""
 
 
 def get_due_users(now: datetime | None = None) -> list[tuple[str, str]]:
@@ -190,17 +180,18 @@ async def generate_insight(content: str, source: str | None = None) -> InsightRe
     Returns:
         InsightResponse with insight and question fields.
     """
+    from src.core.prompts import get_prompt
+
     llm = _get_remind_llm()
     structured_llm = llm.with_structured_output(InsightResponse)
+
+    prompt = get_prompt("thinkback-insight")
 
     user_content = f'Memory: "{content}"'
     if source:
         user_content += f"\nSource: {source}"
 
-    messages = [
-        SystemMessage(content=INSIGHT_SYSTEM_PROMPT),
-        HumanMessage(content=user_content),
-    ]
+    messages = prompt.invoke({"user_content": user_content}).to_messages()
 
     result = await structured_llm.ainvoke(messages)
     if not isinstance(result, InsightResponse):

@@ -46,55 +46,14 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import BaseMessage
 from langchain_core.runnables import Runnable
 from langsmith.evaluation import EvaluationResult
 from langsmith.schemas import Example, Run
 from pydantic import BaseModel, Field
 
 from src.core.config import get_settings
-
-# ---------------------------------------------------------------------------
-# Prompt
-# ---------------------------------------------------------------------------
-
-JUDGE_PROMPT = """\
-You are evaluating the answer quality of a RAG (retrieval-augmented generation) system \
-called ThinkBack. ThinkBack answers questions using ONLY the user's saved personal memories. \
-It must never add information from outside those memories.
-
-You will be given:
-1. The retrieved memories that were passed to the system
-2. The answer the system generated
-3. A quality rubric describing what a good answer looks like
-
-Your job: score the answer 1 or 0.
-
-Score 1 if:
-- The answer is fully grounded in the retrieved memories
-- The answer satisfies the quality rubric
-- The answer does not add facts, frameworks, quotes, or advice not present in the memories
-
-Score 0 if:
-- The answer includes information not present in the retrieved memories
-- The answer hallucinates quotes, biographical facts, or external knowledge
-- The answer fails to meet the quality rubric
-
----
-
-Retrieved memories:
-{retrieved_memories}
-
----
-
-Generated answer:
-{answer}
-
----
-
-Quality rubric:
-{criteria}
-
-"""
+from src.core.prompts import get_prompt
 
 # ---------------------------------------------------------------------------
 # Models
@@ -217,10 +176,12 @@ def _format_memories(retrieved_docs: list[dict]) -> str:
     )
 
 
-async def _invoke_judge(label: str, judge: Runnable, prompt: str) -> tuple[str, int, str]:
+async def _invoke_judge(
+    label: str, judge: Runnable, messages: list[BaseMessage]
+) -> tuple[str, int, str]:
     """Invoke one judge. Returns (label, score, reason). Defaults to 0 on failure."""
     try:
-        response = await judge.ainvoke([{"role": "user", "content": prompt}])
+        response = await judge.ainvoke(messages)
         if isinstance(response, AnswerFaithfulnessModel):
             return label, response.score, response.reason
         return label, 0, "unexpected response type"
@@ -256,14 +217,18 @@ async def answer_faithfulness(run: Run, example: Example | None) -> EvaluationRe
     criteria = example.outputs.get("expected_answer_criteria", "")
     case_type = example.metadata.get("case_type", "")
 
-    prompt = JUDGE_PROMPT.format(
-        retrieved_memories=_format_memories(retrieved_docs),
-        answer=answer,
-        criteria=criteria,
+    prompt_template = get_prompt("thinkback-judge-faithfulness")
+    prompt_value = prompt_template.invoke(
+        {
+            "retrieved_memories": _format_memories(retrieved_docs),
+            "answer": answer,
+            "criteria": criteria,
+        }
     )
+    messages = prompt_value.to_messages()
 
     results: list[tuple[str, int, str]] = await asyncio.gather(
-        *[_invoke_judge(label, judge, prompt) for label, judge in _build_jury()]
+        *[_invoke_judge(label, judge, messages) for label, judge in _build_jury()]
     )
 
     # Negative veto — any 0 overrides all 1s

@@ -30,43 +30,17 @@ NOTE: Unlike answer_faithfulness, this evaluator reads from example.inputs
 not rubric-driven.
 """
 
+from functools import lru_cache
 from typing import Literal
 
 from langchain.chat_models import init_chat_model
+from langchain_core.runnables import Runnable
 from langsmith.evaluation import EvaluationResult
 from langsmith.schemas import Example, Run
 from pydantic import BaseModel, Field
 
 from src.core.config import get_settings
-
-JUDGE_PROMPT = """\
-You are evaluating the answer quality of a RAG system called ThinkBack. \
-ThinkBack answers questions using the user's saved personal memories.
-
-Your job: decide whether the answer actually addresses the question asked.
-Focus ONLY on relevance — not on whether the answer is grounded or detailed.
-
-Score 1 if:
-- The answer directly responds to what the user asked
-- The answer attempts to address the question even if no relevant memories exist
-  (e.g. "I don't have any memories about X" is still relevant if X was asked)
-
-Score 0 if:
-- The answer responds to a different question than the one asked
-- The answer is evasive and avoids the topic entirely
-- The answer provides generic information with no connection to the question
-
----
-
-User question:
-{question}
-
----
-
-Generated answer:
-{answer}
-
-"""
+from src.core.prompts import get_prompt
 
 
 class AnswerRelevanceModel(BaseModel):
@@ -78,14 +52,17 @@ class AnswerRelevanceModel(BaseModel):
     )
 
 
-_settings = get_settings()
-_llm_judge = init_chat_model(
-    model=_settings.eval_llm_model,
-    model_provider=_settings.eval_llm_provider,
-    api_key=_settings.openai_api_key.get_secret_value(),
-    base_url=_settings.eval_llm_provider_base_url,
-    temperature=0,
-).with_structured_output(AnswerRelevanceModel)
+@lru_cache(maxsize=1)
+def _get_llm_judge() -> Runnable:
+    """Lazily build and cache the LLM judge so env vars are not read at import time."""
+    settings = get_settings()
+    return init_chat_model(
+        model=settings.eval_llm_model,
+        model_provider=settings.eval_llm_provider,
+        api_key=settings.openai_api_key.get_secret_value(),
+        base_url=settings.eval_llm_provider_base_url,
+        temperature=0,
+    ).with_structured_output(AnswerRelevanceModel)
 
 
 async def answer_relevance(run: Run, example: Example | None) -> EvaluationResult:
@@ -117,11 +94,10 @@ async def answer_relevance(run: Run, example: Example | None) -> EvaluationResul
             comment="Missing question or answer",
         )
 
-    prompt = JUDGE_PROMPT.format(question=question, answer=answer)
+    prompt_template = get_prompt("thinkback-judge-relevance")
+    prompt_value = prompt_template.invoke({"question": question, "answer": answer})
 
-    response = await _llm_judge.ainvoke(
-        [{"role": "user", "content": prompt}],
-    )
+    response = await _get_llm_judge().ainvoke(prompt_value.to_messages())
 
     if isinstance(response, AnswerRelevanceModel):
         score = response.score

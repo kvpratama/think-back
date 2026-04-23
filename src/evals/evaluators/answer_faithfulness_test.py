@@ -7,6 +7,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.messages import HumanMessage
+from langchain_core.prompts import PromptTemplate
 from langsmith.schemas import Example, Run
 from pydantic import SecretStr
 
@@ -239,7 +241,9 @@ class TestInvokeJudge:
         mock_judge = AsyncMock()
         mock_judge.ainvoke.return_value = AnswerFaithfulnessModel(reason="Grounded", score=1)
 
-        label, score, reason = await _invoke_judge("gpt-4o", mock_judge, "prompt")
+        label, score, reason = await _invoke_judge(
+            "gpt-4o", mock_judge, [HumanMessage(content="prompt")]
+        )
 
         assert label == "gpt-4o"
         assert score == 1
@@ -249,7 +253,9 @@ class TestInvokeJudge:
         mock_judge = AsyncMock()
         mock_judge.ainvoke.return_value = "unexpected string"
 
-        label, score, reason = await _invoke_judge("gpt-4o", mock_judge, "prompt")
+        label, score, reason = await _invoke_judge(
+            "gpt-4o", mock_judge, [HumanMessage(content="prompt")]
+        )
 
         assert score == 0
         assert "unexpected response type" in reason
@@ -258,7 +264,9 @@ class TestInvokeJudge:
         mock_judge = AsyncMock()
         mock_judge.ainvoke.side_effect = RuntimeError("API timeout")
 
-        label, score, reason = await _invoke_judge("gpt-4o", mock_judge, "prompt")
+        label, score, reason = await _invoke_judge(
+            "gpt-4o", mock_judge, [HumanMessage(content="prompt")]
+        )
 
         assert score == 0
         assert "invocation failed" in reason
@@ -288,8 +296,14 @@ class TestAnswerFaithfulness:
 
         assert result.score == 0
 
+    @patch("src.evals.evaluators.answer_faithfulness.get_prompt")
     @patch("src.evals.evaluators.answer_faithfulness._build_jury")
-    async def test_all_judges_pass_scores_1(self, mock_jury: MagicMock) -> None:
+    async def test_all_judges_pass_scores_1(
+        self, mock_jury: MagicMock, mock_prompt: MagicMock
+    ) -> None:
+        mock_prompt.return_value = PromptTemplate.from_template(
+            "{retrieved_memories}\n{answer}\n{criteria}"
+        )
         judge_a = AsyncMock()
         judge_a.ainvoke.return_value = AnswerFaithfulnessModel(reason="OK", score=1)
         judge_b = AsyncMock()
@@ -303,8 +317,12 @@ class TestAnswerFaithfulness:
 
         assert result.score == 1
 
+    @patch("src.evals.evaluators.answer_faithfulness.get_prompt")
     @patch("src.evals.evaluators.answer_faithfulness._build_jury")
-    async def test_one_veto_scores_0(self, mock_jury: MagicMock) -> None:
+    async def test_one_veto_scores_0(self, mock_jury: MagicMock, mock_prompt: MagicMock) -> None:
+        mock_prompt.return_value = PromptTemplate.from_template(
+            "{retrieved_memories}\n{answer}\n{criteria}"
+        )
         judge_pass = AsyncMock()
         judge_pass.ainvoke.return_value = AnswerFaithfulnessModel(reason="OK", score=1)
         judge_veto = AsyncMock()
