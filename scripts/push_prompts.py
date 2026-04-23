@@ -8,9 +8,12 @@ Pushes all prompts from _DEFAULTS to LangSmith Hub with :prod tag.
 import os
 import sys
 
+from dotenv import load_dotenv
 from langsmith import Client
 
 from src.core.prompt_defaults import DEFAULTS as _DEFAULTS
+
+load_dotenv()
 
 
 def main() -> None:
