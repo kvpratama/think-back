@@ -40,9 +40,9 @@ def get_prompt(name: str, *, tag: str = "prod") -> ChatPromptTemplate:
         logger.warning(
             "Non-ChatPromptTemplate returned from LangSmith for '%s', using default", name
         )
-        return _DEFAULTS[name]
     except Exception as e:
         logger.warning("LangSmith unavailable for '%s': %s", name, e)
-        if name in _DEFAULTS:
-            return _DEFAULTS[name]
-        raise ValueError(f"Prompt '{name}' not found in LangSmith or defaults") from e
+
+    if name in _DEFAULTS:
+        return _DEFAULTS[name]
+    raise ValueError(f"Prompt '{name}' not found in LangSmith or defaults")
