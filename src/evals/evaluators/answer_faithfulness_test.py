@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import HumanMessage
+from langchain_core.prompts import PromptTemplate
 from langsmith.schemas import Example, Run
 from pydantic import SecretStr
 
@@ -295,8 +296,14 @@ class TestAnswerFaithfulness:
 
         assert result.score == 0
 
+    @patch("src.core.prompts.get_prompt")
     @patch("src.evals.evaluators.answer_faithfulness._build_jury")
-    async def test_all_judges_pass_scores_1(self, mock_jury: MagicMock) -> None:
+    async def test_all_judges_pass_scores_1(
+        self, mock_jury: MagicMock, mock_prompt: MagicMock
+    ) -> None:
+        mock_prompt.return_value = PromptTemplate.from_template(
+            "{retrieved_memories}\n{answer}\n{criteria}"
+        )
         judge_a = AsyncMock()
         judge_a.ainvoke.return_value = AnswerFaithfulnessModel(reason="OK", score=1)
         judge_b = AsyncMock()
@@ -310,8 +317,12 @@ class TestAnswerFaithfulness:
 
         assert result.score == 1
 
+    @patch("src.core.prompts.get_prompt")
     @patch("src.evals.evaluators.answer_faithfulness._build_jury")
-    async def test_one_veto_scores_0(self, mock_jury: MagicMock) -> None:
+    async def test_one_veto_scores_0(self, mock_jury: MagicMock, mock_prompt: MagicMock) -> None:
+        mock_prompt.return_value = PromptTemplate.from_template(
+            "{retrieved_memories}\n{answer}\n{criteria}"
+        )
         judge_pass = AsyncMock()
         judge_pass.ainvoke.return_value = AnswerFaithfulnessModel(reason="OK", score=1)
         judge_veto = AsyncMock()

@@ -6,7 +6,6 @@ defaults in ``prompt_defaults.py`` when the hub is unavailable.
 
 import logging
 from functools import lru_cache
-from typing import Any
 
 from langchain_core.prompts import ChatPromptTemplate
 from langsmith import Client
@@ -24,7 +23,7 @@ def _get_ls_client() -> Client:
     return Client()
 
 
-def get_prompt(name: str, *, tag: str = "prod") -> Any:
+def get_prompt(name: str, *, tag: str = "prod") -> ChatPromptTemplate:
     """Pull a prompt from LangSmith Hub, falling back to hardcoded default.
 
     Args:

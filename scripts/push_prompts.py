@@ -41,6 +41,7 @@ def main() -> None:
         print(f"Failed: {len(failures)}")
         for name, error in failures:
             print(f"  - {name}: {error}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
