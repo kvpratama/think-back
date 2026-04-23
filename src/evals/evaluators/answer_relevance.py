@@ -39,35 +39,6 @@ from pydantic import BaseModel, Field
 
 from src.core.config import get_settings
 
-JUDGE_PROMPT = """\
-You are evaluating the answer quality of a RAG system called ThinkBack. \
-ThinkBack answers questions using the user's saved personal memories.
-
-Your job: decide whether the answer actually addresses the question asked.
-Focus ONLY on relevance — not on whether the answer is grounded or detailed.
-
-Score 1 if:
-- The answer directly responds to what the user asked
-- The answer attempts to address the question even if no relevant memories exist
-  (e.g. "I don't have any memories about X" is still relevant if X was asked)
-
-Score 0 if:
-- The answer responds to a different question than the one asked
-- The answer is evasive and avoids the topic entirely
-- The answer provides generic information with no connection to the question
-
----
-
-User question:
-{question}
-
----
-
-Generated answer:
-{answer}
-
-"""
-
 
 class AnswerRelevanceModel(BaseModel):
     """Structured output of the evaluation."""
@@ -98,6 +69,7 @@ async def answer_relevance(run: Run, example: Example | None) -> EvaluationResul
     judged against the question alone, not a rubric. This makes it
     complementary to answer_faithfulness rather than redundant.
     """
+    from src.core.prompts import get_prompt
 
     if not run.outputs or not example or not example.inputs or not example.metadata:
         return EvaluationResult(
@@ -117,11 +89,10 @@ async def answer_relevance(run: Run, example: Example | None) -> EvaluationResul
             comment="Missing question or answer",
         )
 
-    prompt = JUDGE_PROMPT.format(question=question, answer=answer)
+    prompt_template = get_prompt("thinkback-judge-relevance")
+    prompt_value = prompt_template.invoke({"question": question, "answer": answer})
 
-    response = await _llm_judge.ainvoke(
-        [{"role": "user", "content": prompt}],
-    )
+    response = await _llm_judge.ainvoke(prompt_value.to_messages())
 
     if isinstance(response, AnswerRelevanceModel):
         score = response.score

@@ -26,15 +26,6 @@ from src.db.client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
-INSIGHT_SYSTEM_PROMPT = """You are ThinkBack, a reflective companion. \
-Given a saved memory (a quote or highlight), do two things:
-
-1. Insight: Rephrase the core lesson in your own words (1-2 sentences).
-2. Question: Ask one reflective question — a call to action, \
-self-reflection, or application prompt (1 sentence).
-
-Keep it warm, concise, and grounded in the original quote."""
-
 
 def get_due_users(now: datetime | None = None) -> list[tuple[str, str]]:
     """Find users whose reminder time matches the current hour.
@@ -190,15 +181,21 @@ async def generate_insight(content: str, source: str | None = None) -> InsightRe
     Returns:
         InsightResponse with insight and question fields.
     """
+    from src.core.prompts import get_prompt
+
     llm = _get_remind_llm()
     structured_llm = llm.with_structured_output(InsightResponse)
+
+    prompt = get_prompt("thinkback-insight")
+    messages = prompt.format_messages()
+    system_msg = str(messages[0].content) if messages else ""
 
     user_content = f'Memory: "{content}"'
     if source:
         user_content += f"\nSource: {source}"
 
     messages = [
-        SystemMessage(content=INSIGHT_SYSTEM_PROMPT),
+        SystemMessage(content=system_msg),
         HumanMessage(content=user_content),
     ]
 
