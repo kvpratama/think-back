@@ -32,6 +32,10 @@ def get_prompt(name: str, *, tag: str = "prod") -> ChatPromptTemplate:
 
     Returns:
         The prompt template from LangSmith, or the hardcoded fallback.
+
+    Raises:
+        ValueError: If ``name`` is not available in LangSmith and has no
+            entry in ``DEFAULTS``.
     """
     try:
         result = _get_ls_client().pull_prompt(f"{name}:{tag}")

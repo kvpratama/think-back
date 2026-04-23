@@ -296,7 +296,7 @@ class TestAnswerFaithfulness:
 
         assert result.score == 0
 
-    @patch("src.core.prompts.get_prompt")
+    @patch("src.evals.evaluators.answer_faithfulness.get_prompt")
     @patch("src.evals.evaluators.answer_faithfulness._build_jury")
     async def test_all_judges_pass_scores_1(
         self, mock_jury: MagicMock, mock_prompt: MagicMock
@@ -317,7 +317,7 @@ class TestAnswerFaithfulness:
 
         assert result.score == 1
 
-    @patch("src.core.prompts.get_prompt")
+    @patch("src.evals.evaluators.answer_faithfulness.get_prompt")
     @patch("src.evals.evaluators.answer_faithfulness._build_jury")
     async def test_one_veto_scores_0(self, mock_jury: MagicMock, mock_prompt: MagicMock) -> None:
         mock_prompt.return_value = PromptTemplate.from_template(

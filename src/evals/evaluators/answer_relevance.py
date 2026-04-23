@@ -38,6 +38,7 @@ from langsmith.schemas import Example, Run
 from pydantic import BaseModel, Field
 
 from src.core.config import get_settings
+from src.core.prompts import get_prompt
 
 
 class AnswerRelevanceModel(BaseModel):
@@ -69,7 +70,6 @@ async def answer_relevance(run: Run, example: Example | None) -> EvaluationResul
     judged against the question alone, not a rubric. This makes it
     complementary to answer_faithfulness rather than redundant.
     """
-    from src.core.prompts import get_prompt
 
     if not run.outputs or not example or not example.inputs or not example.metadata:
         return EvaluationResult(

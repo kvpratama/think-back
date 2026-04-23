@@ -53,6 +53,7 @@ from langsmith.schemas import Example, Run
 from pydantic import BaseModel, Field
 
 from src.core.config import get_settings
+from src.core.prompts import get_prompt
 
 # ---------------------------------------------------------------------------
 # Models
@@ -203,7 +204,6 @@ async def answer_faithfulness(run: Run, example: Example | None) -> EvaluationRe
 
     To add or remove a judge, update EVAL_JURY_JUDGES in .env — no code changes needed.
     """
-    from src.core.prompts import get_prompt
 
     if not run.outputs or not example or not example.outputs or not example.metadata:
         return EvaluationResult(
