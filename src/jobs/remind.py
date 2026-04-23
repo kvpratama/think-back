@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 from telegram import Bot
@@ -187,17 +187,12 @@ async def generate_insight(content: str, source: str | None = None) -> InsightRe
     structured_llm = llm.with_structured_output(InsightResponse)
 
     prompt = get_prompt("thinkback-insight")
-    messages = prompt.format_messages()
-    system_msg = str(messages[0].content) if messages else ""
 
     user_content = f'Memory: "{content}"'
     if source:
         user_content += f"\nSource: {source}"
 
-    messages = [
-        SystemMessage(content=system_msg),
-        HumanMessage(content=user_content),
-    ]
+    messages = prompt.format_messages() + [HumanMessage(content=user_content)]
 
     result = await structured_llm.ainvoke(messages)
     if not isinstance(result, InsightResponse):

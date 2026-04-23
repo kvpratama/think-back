@@ -174,10 +174,10 @@ def _format_memories(retrieved_docs: list[dict]) -> str:
     )
 
 
-async def _invoke_judge(label: str, judge: Runnable, prompt: str) -> tuple[str, int, str]:
+async def _invoke_judge(label: str, judge: Runnable, messages: list[Any]) -> tuple[str, int, str]:
     """Invoke one judge. Returns (label, score, reason). Defaults to 0 on failure."""
     try:
-        response = await judge.ainvoke([{"role": "user", "content": prompt}])
+        response = await judge.ainvoke(messages)
         if isinstance(response, AnswerFaithfulnessModel):
             return label, response.score, response.reason
         return label, 0, "unexpected response type"
@@ -223,10 +223,9 @@ async def answer_faithfulness(run: Run, example: Example | None) -> EvaluationRe
         }
     )
     messages = prompt_value.to_messages()
-    prompt = messages[0].content if messages else ""
 
     results: list[tuple[str, int, str]] = await asyncio.gather(
-        *[_invoke_judge(label, judge, str(prompt)) for label, judge in _build_jury()]
+        *[_invoke_judge(label, judge, messages) for label, judge in _build_jury()]
     )
 
     # Negative veto — any 0 overrides all 1s

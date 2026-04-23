@@ -239,7 +239,9 @@ class TestInvokeJudge:
         mock_judge = AsyncMock()
         mock_judge.ainvoke.return_value = AnswerFaithfulnessModel(reason="Grounded", score=1)
 
-        label, score, reason = await _invoke_judge("gpt-4o", mock_judge, "prompt")
+        label, score, reason = await _invoke_judge(
+            "gpt-4o", mock_judge, [{"role": "user", "content": "prompt"}]
+        )
 
         assert label == "gpt-4o"
         assert score == 1
@@ -249,7 +251,9 @@ class TestInvokeJudge:
         mock_judge = AsyncMock()
         mock_judge.ainvoke.return_value = "unexpected string"
 
-        label, score, reason = await _invoke_judge("gpt-4o", mock_judge, "prompt")
+        label, score, reason = await _invoke_judge(
+            "gpt-4o", mock_judge, [{"role": "user", "content": "prompt"}]
+        )
 
         assert score == 0
         assert "unexpected response type" in reason
@@ -258,7 +262,9 @@ class TestInvokeJudge:
         mock_judge = AsyncMock()
         mock_judge.ainvoke.side_effect = RuntimeError("API timeout")
 
-        label, score, reason = await _invoke_judge("gpt-4o", mock_judge, "prompt")
+        label, score, reason = await _invoke_judge(
+            "gpt-4o", mock_judge, [{"role": "user", "content": "prompt"}]
+        )
 
         assert score == 0
         assert "invocation failed" in reason

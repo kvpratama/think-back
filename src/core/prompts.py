@@ -2,8 +2,12 @@ import logging
 
 from langchain_core.prompts import ChatPromptTemplate
 from langsmith import Client
+from langsmith.prompt_cache import configure_global_prompt_cache
 
 logger = logging.getLogger(__name__)
+
+configure_global_prompt_cache()
+_ls_client = Client()
 
 _DEFAULTS: dict[str, ChatPromptTemplate] = {
     "thinkback-agent": ChatPromptTemplate.from_messages(
@@ -197,8 +201,7 @@ def get_prompt(name: str, *, tag: str = "prod") -> ChatPromptTemplate:
     """
 
     try:
-        client = Client()
-        return client.pull_prompt(f"{name}:{tag}")
+        return _ls_client.pull_prompt(f"{name}:{tag}")
     except Exception:
         logger.warning("LangSmith unavailable, using default for '%s'", name)
         return _DEFAULTS[name]
