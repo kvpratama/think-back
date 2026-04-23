@@ -53,7 +53,22 @@ def build_graph(
     llm = _get_llm()
 
     prompt = get_prompt("thinkback-agent")
-    system_msg = str(prompt.invoke({}).to_messages()[0].content)
+    try:
+        messages = prompt.invoke({}).to_messages()
+    except KeyError as e:
+        raise ValueError(f"Prompt 'thinkback-agent' requires input variables: {e}") from e
+    if not messages:
+        raise ValueError(
+            "get_prompt('thinkback-agent').invoke({}).to_messages() returned empty list"
+        )
+    first_msg = messages[0]
+    if not hasattr(first_msg, "type") or first_msg.type != "system":
+        raise ValueError(
+            f"First message from prompt must be system message, got: {type(first_msg)}"
+        )
+    if not isinstance(first_msg.content, str):
+        raise ValueError(f"System message content must be str, got: {type(first_msg.content)}")
+    system_msg = first_msg.content
 
     agent = create_agent(
         model=llm,

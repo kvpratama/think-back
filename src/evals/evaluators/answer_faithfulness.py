@@ -46,6 +46,7 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import BaseMessage
 from langchain_core.runnables import Runnable
 from langsmith.evaluation import EvaluationResult
 from langsmith.schemas import Example, Run
@@ -174,7 +175,9 @@ def _format_memories(retrieved_docs: list[dict]) -> str:
     )
 
 
-async def _invoke_judge(label: str, judge: Runnable, messages: list[Any]) -> tuple[str, int, str]:
+async def _invoke_judge(
+    label: str, judge: Runnable, messages: list[BaseMessage]
+) -> tuple[str, int, str]:
     """Invoke one judge. Returns (label, score, reason). Defaults to 0 on failure."""
     try:
         response = await judge.ainvoke(messages)

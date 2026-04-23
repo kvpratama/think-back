@@ -6,6 +6,7 @@ defaults in ``prompt_defaults.py`` when the hub is unavailable.
 
 import logging
 from functools import lru_cache
+from typing import Any
 
 from langchain_core.prompts import ChatPromptTemplate
 from langsmith import Client
@@ -23,7 +24,7 @@ def _get_ls_client() -> Client:
     return Client()
 
 
-def get_prompt(name: str, *, tag: str = "prod") -> ChatPromptTemplate:
+def get_prompt(name: str, *, tag: str = "prod") -> Any:
     """Pull a prompt from LangSmith Hub, falling back to hardcoded default.
 
     Args:
@@ -34,7 +35,15 @@ def get_prompt(name: str, *, tag: str = "prod") -> ChatPromptTemplate:
         The prompt template from LangSmith, or the hardcoded fallback.
     """
     try:
-        return _get_ls_client().pull_prompt(f"{name}:{tag}")
-    except Exception:
-        logger.warning("LangSmith unavailable, using default for '%s'", name)
+        result = _get_ls_client().pull_prompt(f"{name}:{tag}")
+        if isinstance(result, ChatPromptTemplate):
+            return result
+        logger.warning(
+            "Non-ChatPromptTemplate returned from LangSmith for '%s', using default", name
+        )
         return _DEFAULTS[name]
+    except Exception as e:
+        logger.warning("LangSmith unavailable for '%s': %s", name, e)
+        if name in _DEFAULTS:
+            return _DEFAULTS[name]
+        raise ValueError(f"Prompt '{name}' not found in LangSmith or defaults") from e

@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.messages import HumanMessage
 from langsmith.schemas import Example, Run
 from pydantic import SecretStr
 
@@ -240,7 +241,7 @@ class TestInvokeJudge:
         mock_judge.ainvoke.return_value = AnswerFaithfulnessModel(reason="Grounded", score=1)
 
         label, score, reason = await _invoke_judge(
-            "gpt-4o", mock_judge, [{"role": "user", "content": "prompt"}]
+            "gpt-4o", mock_judge, [HumanMessage(content="prompt")]
         )
 
         assert label == "gpt-4o"
@@ -252,7 +253,7 @@ class TestInvokeJudge:
         mock_judge.ainvoke.return_value = "unexpected string"
 
         label, score, reason = await _invoke_judge(
-            "gpt-4o", mock_judge, [{"role": "user", "content": "prompt"}]
+            "gpt-4o", mock_judge, [HumanMessage(content="prompt")]
         )
 
         assert score == 0
@@ -263,7 +264,7 @@ class TestInvokeJudge:
         mock_judge.ainvoke.side_effect = RuntimeError("API timeout")
 
         label, score, reason = await _invoke_judge(
-            "gpt-4o", mock_judge, [{"role": "user", "content": "prompt"}]
+            "gpt-4o", mock_judge, [HumanMessage(content="prompt")]
         )
 
         assert score == 0
