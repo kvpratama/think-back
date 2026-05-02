@@ -40,7 +40,23 @@ async def aget_checkpointer() -> AsyncPostgresSaver:
         settings = get_settings()
         pool = AsyncConnectionPool(
             settings.database_url.get_secret_value(),
-            kwargs={"row_factory": dict_row, "autocommit": True},
+            kwargs={
+                "row_factory": dict_row,
+                "autocommit": True,
+                # Disable auto-prepared statements. Required for Supabase's
+                # transaction pooler (port 6543) and harmless on session
+                # connections; without this, recycled backends raise
+                # "DbHandler exited" on the next aget_tuple call.
+                "prepare_threshold": None,
+            },
+            # Validate a connection before handing it out so stale/closed
+            # connections (e.g. killed by Supavisor) get discarded instead
+            # of being returned to the caller.
+            check=AsyncConnectionPool.check_connection,
+            # Rotate connections proactively so we never hold one long
+            # enough for the upstream pooler to drop it from under us.
+            max_idle=300,  # 5 min
+            max_lifetime=1800,  # 30 min
             open=False,
         )
         await pool.open()
