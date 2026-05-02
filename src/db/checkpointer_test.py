@@ -99,6 +99,43 @@ async def test_aclose_checkpointer_noop_when_none() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_checkpointer_configures_pool_for_pooler_resilience() -> None:
+    """Pool is configured to survive Supavisor backend recycling.
+
+    Regression guard for "DbHandler exited" errors caused by stale
+    pooled connections after idle periods. Verifies that:
+    - prepared statements are disabled (prepare_threshold=None)
+    - connections are health-checked before checkout
+    - max_idle / max_lifetime are set to recycle connections
+    """
+    from src.db.checkpointer import aget_checkpointer
+
+    mock_settings = MagicMock()
+    mock_settings.database_url.get_secret_value.return_value = (
+        "postgresql://user:pass@localhost:5432/db"
+    )
+
+    mock_pool = MagicMock()
+    mock_pool.open = AsyncMock()
+    mock_saver = MagicMock()
+    mock_saver.setup = AsyncMock()
+
+    with (
+        patch("src.core.config.get_settings", return_value=mock_settings),
+        patch("src.db.checkpointer.AsyncConnectionPool", return_value=mock_pool) as mock_pool_cls,
+        patch("src.db.checkpointer.AsyncPostgresSaver", return_value=mock_saver),
+    ):
+        await aget_checkpointer()
+
+    _, kwargs = mock_pool_cls.call_args
+    assert kwargs["kwargs"]["prepare_threshold"] is None
+    assert kwargs["kwargs"]["autocommit"] is True
+    assert kwargs["check"] is mock_pool_cls.check_connection
+    assert kwargs["max_idle"] > 0
+    assert kwargs["max_lifetime"] > kwargs["max_idle"]
+
+
+@pytest.mark.asyncio
 async def test_get_checkpointer_closes_pool_on_setup_failure() -> None:
     """Test that pool is closed when saver.setup() fails."""
     from src.db.checkpointer import aget_checkpointer
