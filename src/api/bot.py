@@ -7,14 +7,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import random
-import time
 
 from dotenv import load_dotenv
 from langchain_core.runnables import RunnableConfig
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update, constants
 from telegram.constants import ParseMode
-from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -25,7 +22,6 @@ from telegram.ext import (
     filters,
 )
 
-from src.api.bot_batcher import MessageBatcher
 from src.api.bot_callbacks import handle_callback
 from src.api.bot_commands import (
     chat_member_update,
@@ -62,7 +58,7 @@ async def handle_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Handle incoming messages and route to the message batcher.
+    """Handle incoming text messages by invoking the agent graph directly.
 
     Args:
         update: The Telegram update.
@@ -75,18 +71,15 @@ async def handle_message(
     user_input = update.message.text
     chat_id = str(update.message.chat.id)
 
-    # Commands bypass batching for immediate response
+    # Commands are routed by their own CommandHandlers
     if user_input and user_input.startswith("/"):
-        logger.debug("Command detected, bypassing batching: %s", user_input)
+        logger.debug("Command detected, bypassing message handler: %s", user_input)
         return
 
-    # Skip if no text
     if not user_input:
         return
 
-    # Add message to batcher
-    message_batcher = context.bot_data["message_batcher"]
-    await message_batcher.add_message(
+    await process_message(
         chat_id=chat_id,
         user_id=update.message.from_user.id,
         text=user_input,
@@ -114,23 +107,22 @@ async def non_private_chat_handler(
     )
 
 
-async def process_batch(
+async def process_message(
     chat_id: str,
     user_id: int,
-    combined_text: str,
+    text: str,
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Process a batch of combined messages through the agent graph.
+    """Process a single user message through the agent graph and reply once.
 
     Args:
-        chat_id: Chat identifier.
-        user_id: User identifier.
-        combined_text: Combined text from all batched messages.
-        update: Telegram update from first message in batch.
+        chat_id: Chat identifier (also used as LangGraph thread_id in private chats).
+        user_id: Telegram user identifier.
+        text: User's text content.
+        update: Telegram update from this message.
         context: Telegram context.
     """
-    # Resolve user_settings_id for multi-tenancy
     try:
         user_settings_id = await asyncio.to_thread(get_user_settings_id, chat_id)
     except Exception:
@@ -153,70 +145,28 @@ async def process_batch(
         action=constants.ChatAction.TYPING,
     )
 
-    accumulated_response = ""
-    final_response = ""
-    handled_interrupt = False
-    last_update_time = time.monotonic()
-    update_interval = 0.3
     telegram_char_limit = 4000
-    draft_id = random.randint(1, 2**31 - 1)
+    final_response = ""
 
     try:
         graph = await aget_graph(context)
-        # In private chats, chat_id equals user_id, so this uniquely identifies the user's thread.
-        # ThinkBack is restricted to private chats only (enforced via filters.ChatType.PRIVATE).
+        # In private chats, chat_id equals user_id, so this uniquely identifies
+        # the user's thread. ThinkBack is restricted to private chats only
+        # (enforced via filters.ChatType.PRIVATE).
         thread_id = str(chat_id)
         config = RunnableConfig(
             {"configurable": {"thread_id": thread_id, "user_settings_id": user_settings_id}}
         )
-        async for chunk in graph.astream(
-            {"messages": [{"role": "user", "content": combined_text}]},
+
+        await graph.ainvoke(
+            {"messages": [{"role": "user", "content": text}]},
             config=config,
-            stream_mode="messages",
-        ):
-            msg, metadata = chunk
+        )
 
-            # Send typing indicator for tool call
-            if not isinstance(msg, str) and msg.type == "tool":
-                try:
-                    await context.bot.send_chat_action(
-                        chat_id=int(chat_id),
-                        action=constants.ChatAction.TYPING,
-                    )
-                except TelegramError:
-                    pass
-                continue
-
-            # Only stream AI messages
-            if not isinstance(msg, str) and msg.type == "ai" and msg.content:
-                content = msg.content
-                accumulated_response += content if isinstance(content, str) else str(content)
-
-                current_time = time.monotonic()
-                if (
-                    current_time - last_update_time > update_interval
-                    and accumulated_response.strip()
-                ):
-                    display_text = truncate_for_telegram(
-                        accumulated_response,
-                        max_len=telegram_char_limit,
-                    )
-                    try:
-                        await context.bot.send_message_draft(
-                            chat_id=int(chat_id),
-                            draft_id=draft_id,
-                            text=display_text,
-                        )
-                        last_update_time = current_time
-                    except BadRequest:
-                        pass
-                    except TelegramError:
-                        pass
-
-        # Check for interrupt (save confirmation)
         state = await graph.aget_state(config)
+
+        # Interrupt path: graph paused awaiting Save/Cancel confirmation
         if state.next:
-            # Graph is interrupted — extract the interrupt value
             interrupt_value = state.tasks[0].interrupts[0].value
             insight = interrupt_value.get("insight", "")
             content = interrupt_value.get("content", "")
@@ -242,7 +192,6 @@ async def process_batch(
                 f"<blockquote>{insight}</blockquote>\n\n"
                 f'<i>Original: "{content}"</i>',
             ]
-
             if duplicates:
                 confirm_parts.append("\n\n⚠️ <b>Similar memories found:</b>")
                 for dup in duplicates:
@@ -258,29 +207,26 @@ async def process_batch(
                 reply_markup=keyboard,
                 parse_mode=ParseMode.HTML,
             )
-            handled_interrupt = True
             return
 
-        # No interrupt — send final response
-        result = await graph.aget_state(config)
-        messages = result.values.get("messages", [])
+        # No interrupt — send final assistant message
+        messages = state.values.get("messages", [])
         if messages:
             final_response = messages[-1].content if hasattr(messages[-1], "content") else ""
 
     except Exception:
         logger.exception("Error processing message in chat %s", chat_id)
-        final_response = accumulated_response or "Sorry, something went wrong. Please try again."
-    finally:
-        if not handled_interrupt and (final_response or accumulated_response):
-            final_response = final_response or accumulated_response or "No response generated."
-            safe_response = truncate_for_telegram(
-                final_response,
-                max_len=telegram_char_limit,
-            )
-            await update.message.reply_text(
-                safe_response,
-                parse_mode=ParseMode.HTML,
-            )
+        final_response = final_response or "Sorry, something went wrong. Please try again."
+
+    if final_response:
+        safe_response = truncate_for_telegram(
+            final_response,
+            max_len=telegram_char_limit,
+        )
+        await update.message.reply_text(
+            safe_response,
+            parse_mode=ParseMode.HTML,
+        )
 
 
 async def _post_init(application: Application) -> None:
@@ -300,18 +246,14 @@ async def _post_init(application: Application) -> None:
 
 
 async def _post_shutdown(application: Application) -> None:
-    """Clean up resources after the application shuts down.
+    """Clean up resources after the application shuts down (polling mode only).
 
     Args:
         application: The Telegram Application instance.
     """
     from src.db.checkpointer import aclose_checkpointer
 
-    message_batcher = application.bot_data["message_batcher"]
-    try:
-        await message_batcher.shutdown()
-    finally:
-        await aclose_checkpointer()
+    await aclose_checkpointer()
 
 
 def create_application() -> Application:
@@ -328,11 +270,6 @@ def create_application() -> Application:
         .post_init(_post_init)
         .post_shutdown(_post_shutdown)
         .build()
-    )
-
-    # Initialize and store message batcher
-    application.bot_data["message_batcher"] = MessageBatcher(
-        timeout=1.0, process_callback=process_batch
     )
 
     application.add_handler(
