@@ -97,6 +97,18 @@ class TestSanitizeForTelegramHtml:
         html = '<a class="no-href">text</a> and <a>another</a>'
         assert sanitize_for_telegram_html(html) == "text and another"
 
+    def test_link_with_prefixed_href_attr_stripped(self) -> None:
+        """<a> with data-href (or similar) should be stripped, not kept."""
+        html = '<a data-href="https://example.com">bad</a>'
+        assert sanitize_for_telegram_html(html) == "bad"
+
+        # A real href right next to it should still be kept
+        html_mixed = '<a data-href="https://x.com">bad</a> <a href="https://y.com">good</a>'
+        result = sanitize_for_telegram_html(html_mixed)
+        assert "bad" in result
+        assert '<a href="https://y.com">good</a>' in result
+        assert "data-href" not in result
+
     def test_mixed_supported_and_unsupported(self) -> None:
         """Mix of supported and unsupported tags handled correctly."""
         html = "<b>Bold</b> <unknown>text</unknown> <i>italic</i>"

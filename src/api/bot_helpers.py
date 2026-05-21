@@ -58,7 +58,7 @@ def sanitize_for_telegram_html(text: str) -> str:
                 if open_a_href_stack and open_a_href_stack.pop():
                     new_parts.append(part)
             else:
-                if re.search(r"\bhref\s*=", part, re.IGNORECASE):
+                if re.search(r"(?<!-)\bhref\s*=", part, re.IGNORECASE):
                     open_a_href_stack.append(True)
                     new_parts.append(part)
                 else:
