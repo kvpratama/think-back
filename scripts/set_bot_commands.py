@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 
-from dotenv import load_dotenv
 from telegram import Bot, BotCommand
 
 from src.core.config import get_settings
@@ -16,7 +15,6 @@ from src.core.config import get_settings
 
 async def _main() -> None:
     """Push the current bot command list to Telegram."""
-    load_dotenv()
     settings = get_settings()
     bot = Bot(token=settings.telegram_bot_token.get_secret_value())
     async with bot:

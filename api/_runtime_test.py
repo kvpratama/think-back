@@ -8,9 +8,12 @@ import pytest
 @pytest.fixture(autouse=True)
 def _reset_singleton() -> None:
     """Ensure each test starts with a fresh singleton."""
+    import asyncio
+
     import api._runtime as runtime
 
     runtime._application = None
+    runtime._application_lock = asyncio.Lock()
 
 
 async def test_get_application_builds_once() -> None:

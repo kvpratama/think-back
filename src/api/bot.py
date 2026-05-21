@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from langchain_core.runnables import RunnableConfig
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update, constants
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -202,11 +203,17 @@ async def process_message(
                 "\n".join(confirm_parts),
                 max_len=telegram_char_limit,
             )
-            await update.message.reply_text(
-                confirm_text,
-                reply_markup=keyboard,
-                parse_mode=ParseMode.HTML,
-            )
+            try:
+                await update.message.reply_text(
+                    confirm_text,
+                    reply_markup=keyboard,
+                    parse_mode=ParseMode.HTML,
+                )
+            except BadRequest:
+                await update.message.reply_text(
+                    confirm_text,
+                    reply_markup=keyboard,
+                )
             return
 
         # No interrupt — send final assistant message
@@ -223,10 +230,15 @@ async def process_message(
             final_response,
             max_len=telegram_char_limit,
         )
-        await update.message.reply_text(
-            safe_response,
-            parse_mode=ParseMode.HTML,
-        )
+        try:
+            await update.message.reply_text(
+                safe_response,
+                parse_mode=ParseMode.HTML,
+            )
+        except BadRequest:
+            await update.message.reply_text(
+                safe_response,
+            )
 
 
 async def _post_init(application: Application) -> None:

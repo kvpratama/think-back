@@ -45,6 +45,26 @@ def sanitize_for_telegram_html(text: str) -> str:
     Returns:
         A string safe to pass to Telegram with ``parse_mode=ParseMode.HTML``.
     """
+    # Remove <a> tags that lack an href attribute, along with their closing tags
+    parts = re.split(r"(</?\s*a(?:\s+[^>]*?)?>)", text, flags=re.IGNORECASE)
+    new_parts = []
+    open_a_href_stack = []
+    for i, part in enumerate(parts):
+        if i % 2 == 0:
+            new_parts.append(part)
+        else:
+            tag_lower = part.lower()
+            if tag_lower.startswith("</"):
+                if open_a_href_stack and open_a_href_stack.pop():
+                    new_parts.append(part)
+            else:
+                if re.search(r"\bhref\s*=", part, re.IGNORECASE):
+                    open_a_href_stack.append(True)
+                    new_parts.append(part)
+                else:
+                    open_a_href_stack.append(False)
+    text = "".join(new_parts)
+
     # --- Transform known unsupported tags ---
 
     # <br> / <br/> → newline

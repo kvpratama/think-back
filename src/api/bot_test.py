@@ -383,3 +383,96 @@ async def test_fallback_handler_for_non_private_chats() -> None:
     call_args = message.reply_text.call_args[0][0]
     assert "private chats" in call_args.lower()
     assert "/start" in call_args
+
+
+async def test_process_message_handles_save_interrupt_bad_request_fallback(
+    mock_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """When update.message.reply_text raises BadRequest with ParseMode.HTML, retry without it."""
+    from telegram.error import BadRequest
+
+    from src.api.bot import process_message
+
+    mock_state = MagicMock()
+    mock_state.next = ("save_node",)
+    interrupt = MagicMock()
+    interrupt.value = {
+        "insight": "Motivation follows action",
+        "content": "I noticed motivation follows action",
+        "duplicates": [],
+    }
+    mock_state.tasks = [MagicMock(interrupts=[interrupt])]
+
+    mock_graph = MagicMock()
+    mock_graph.ainvoke = AsyncMock(return_value={"messages": []})
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+
+    assert mock_update.message is not None
+    assert mock_update.message.from_user is not None
+
+    async def side_effect(*args: Any, **kwargs: Any) -> Any:
+        if kwargs.get("parse_mode") == "HTML":
+            raise BadRequest("Malformed HTML")
+        return MagicMock()
+
+    cast(Any, mock_update.message).reply_text = AsyncMock(side_effect=side_effect)
+
+    with (
+        patch("src.api.bot.get_user_settings_id", return_value="settings-1"),
+        patch("src.api.bot.aget_graph", AsyncMock(return_value=mock_graph)),
+    ):
+        chat_id = str(mock_update.message.chat.id)
+        await process_message(
+            chat_id=chat_id,
+            user_id=mock_update.message.from_user.id,
+            text="anything",
+            update=mock_update,
+            context=mock_context,
+        )
+
+    calls = cast(Any, mock_update.message.reply_text).call_args_list
+    assert len(calls) == 2
+    assert calls[0].kwargs.get("parse_mode") == "HTML"
+    assert "parse_mode" not in calls[1].kwargs or calls[1].kwargs.get("parse_mode") is None
+
+
+async def test_handle_message_natural_language_bad_request_fallback(
+    mock_update: Update,
+    mock_context: MagicMock,
+) -> None:
+    """When sending final response raises BadRequest with ParseMode.HTML, retry without it."""
+    from telegram.error import BadRequest
+
+    from src.api.bot import handle_message
+
+    final_ai = MagicMock()
+    final_ai.content = "I've noted your insight."
+
+    mock_state = MagicMock()
+    mock_state.next = []
+    mock_state.values = {"messages": [final_ai]}
+
+    mock_graph = MagicMock()
+    mock_graph.ainvoke = AsyncMock(return_value={"messages": [final_ai]})
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+
+    assert mock_update.message is not None
+
+    async def side_effect(*args: Any, **kwargs: Any) -> Any:
+        if kwargs.get("parse_mode") == "HTML":
+            raise BadRequest("Malformed HTML")
+        return MagicMock()
+
+    cast(Any, mock_update.message).reply_text = AsyncMock(side_effect=side_effect)
+
+    with (
+        patch("src.api.bot.get_user_settings_id", return_value="settings-1"),
+        patch("src.api.bot.aget_graph", AsyncMock(return_value=mock_graph)),
+    ):
+        await handle_message(mock_update, mock_context)
+
+    calls = cast(Any, mock_update.message.reply_text).call_args_list
+    assert len(calls) == 2
+    assert calls[0].kwargs.get("parse_mode") == "HTML"
+    assert "parse_mode" not in calls[1].kwargs or calls[1].kwargs.get("parse_mode") is None

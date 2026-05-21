@@ -7,6 +7,9 @@ to the shared ``python-telegram-bot`` ``Application`` instance.
 
 from __future__ import annotations
 
+import hmac
+from json import JSONDecodeError
+
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from api._runtime import get_application
@@ -51,10 +54,15 @@ async def telegram_webhook(
     from telegram import Update
 
     expected = _expected_secret()
-    if not expected or x_telegram_bot_api_secret_token != expected:
+    if not x_telegram_bot_api_secret_token or not hmac.compare_digest(
+        x_telegram_bot_api_secret_token, expected
+    ):
         raise HTTPException(status_code=401, detail="invalid secret")
 
-    body = await request.json()
+    try:
+        body = await request.json()
+    except (JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="invalid json") from None
     application = await get_application()
     update = Update.de_json(body, application.bot)
     if update is not None:

@@ -92,6 +92,11 @@ class TestSanitizeForTelegramHtml:
         html = '<a href="https://example.com">link</a>'
         assert sanitize_for_telegram_html(html) == html
 
+    def test_link_without_href_stripped(self) -> None:
+        """<a> links lacking href should be stripped while keeping content."""
+        html = '<a class="no-href">text</a> and <a>another</a>'
+        assert sanitize_for_telegram_html(html) == "text and another"
+
     def test_mixed_supported_and_unsupported(self) -> None:
         """Mix of supported and unsupported tags handled correctly."""
         html = "<b>Bold</b> <unknown>text</unknown> <i>italic</i>"
