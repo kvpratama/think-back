@@ -40,6 +40,8 @@ async def aget_checkpointer() -> AsyncPostgresSaver:
         settings = get_settings()
         pool = AsyncConnectionPool(
             settings.database_url.get_secret_value(),
+            min_size=1,
+            max_size=2,
             kwargs={
                 "row_factory": dict_row,
                 "autocommit": True,

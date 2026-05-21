@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.136.1",
     "langchain>=1.2.12",
     "langchain-google-genai>=4.2.1",
     "langchain-openai>=1.1.11",
@@ -52,4 +53,4 @@ select = ["E", "F", "I", "UP", "B", "C4", "PT"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["src"]
+testpaths = ["src", "api"]
